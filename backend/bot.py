@@ -109,10 +109,12 @@ async def buy_plan(callback: CallbackQuery):
 
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    print(f"PRE CHECKOUT: {pre_checkout_query.id}")
     await pre_checkout_query.answer(ok=True)
 
 @dp.message(F.successful_payment)
 async def successful_payment(message: Message):
+    print(f"SUCCESSFUL PAYMENT: {message.successful_payment}")
     payload = message.successful_payment.invoice_payload
     plan_id, telegram_id = payload.split(":")
 
