@@ -130,11 +130,3 @@ export default function App() {
     </div>
   )
 }
-```
-
-Збережи і залий:
-```
-cd "D:\Work\RedFlag Ai"
-git add .
-git commit -m "fix telegram initData parsing"
-git push
