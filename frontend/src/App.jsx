@@ -88,9 +88,34 @@ const renderScreen = () => {
   }
 }
 
+
   return (
     <div className="app">
       {renderScreen()}
     </div>
   )
 }
+
+const refreshUser = async () => {
+  try {
+    const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/users/${user.telegram_id}`)
+    setUser(data)
+  } catch (e) {
+    console.error('Failed to refresh user:', e)
+  }
+}
+
+useEffect(() => {
+  if (!user) return
+  
+  // Оновлюємо дані коли вікно стає активним
+  const handleFocus = () => refreshUser()
+  window.addEventListener('focus', handleFocus)
+  
+  // Оновлюємо через Telegram WebApp події
+  window.Telegram?.WebApp?.onEvent('activated', refreshUser)
+  
+  return () => {
+    window.removeEventListener('focus', handleFocus)
+  }
+}, [user])
