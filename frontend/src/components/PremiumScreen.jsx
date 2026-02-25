@@ -59,11 +59,17 @@ const handlePay = (plan) => {
   if (plan.disabled) return
 
   if (paymentMethod === 'stars') {
-    // Відкриваємо бота для оплати через Stars
-    const planParam = plan.id === 'love_pro' ? 'buy_love_pro' : 'buy_vip'
-    window.Telegram?.WebApp?.openTelegramLink(`https://t.me/ai_redflag_bot?start=${planParam}`)
+    const tg = window.Telegram?.WebApp
+    if (tg) {
+      // Закриваємо Mini App і відкриваємо бота з командою оплати
+      tg.close()
+      setTimeout(() => {
+        window.open(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`, '_blank')
+      }, 300)
+    } else {
+      window.open(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`, '_blank')
+    }
   } else {
-    // Wayforpay — буде додано пізніше
     alert('Оплата карткою буде доступна найближчим часом!')
   }
 }
