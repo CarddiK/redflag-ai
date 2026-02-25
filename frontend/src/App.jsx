@@ -31,16 +31,34 @@ export default function App() {
 
   const initUser = async () => {
     try {
-      const { initData } = retrieveLaunchParams()
-      const tgUser = initData?.user
-      if (tgUser) {
+      const tg = window.Telegram?.WebApp
+
+      let telegramId = null
+      let username = null
+
+      if (tg && tg.initDataUnsafe?.user) {
+        telegramId = String(tg.initDataUnsafe.user.id)
+        username = tg.initDataUnsafe.user.username
+      } else {
+        try {
+          const { initData } = retrieveLaunchParams()
+          if (initData?.user) {
+            telegramId = String(initData.user.id)
+            username = initData.user.username
+          }
+        } catch {}
+      }
+
+      if (telegramId) {
         const ref = new URLSearchParams(window.location.search).get('ref')
-        const userData = await createUser(String(tgUser.id), tgUser.username, ref)
+        const userData = await createUser(telegramId, username, ref)
         setUser(userData)
       } else {
-        throw new Error('No tg user')
+        const userData = await createUser('123456789', 'test_user', null)
+        setUser(userData)
       }
     } catch (e) {
+      console.error('initUser error:', e)
       try {
         const userData = await createUser('123456789', 'test_user', null)
         setUser(userData)
@@ -112,3 +130,11 @@ export default function App() {
     </div>
   )
 }
+```
+
+Збережи і залий:
+```
+cd "D:\Work\RedFlag Ai"
+git add .
+git commit -m "fix telegram initData parsing"
+git push
