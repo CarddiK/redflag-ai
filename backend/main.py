@@ -11,7 +11,11 @@ app = FastAPI(title="RedFlag AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://fluffy-macaron-7115dc.netlify.app",
+        "http://localhost:5173",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
