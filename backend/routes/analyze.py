@@ -14,7 +14,6 @@ FREE_ANALYSES_LIMIT = 3
 LOVE_PRO_ANALYSES_LIMIT = 50
 
 async def get_plan(user: User, db: AsyncSession) -> str:
-    """Повертає plan: free, love_pro, vip"""
     if not user.is_premium:
         return "free"
     sub_result = await db.execute(
@@ -28,8 +27,9 @@ async def get_plan(user: User, db: AsyncSession) -> str:
     )
     sub = sub_result.scalar_one_or_none()
     if not sub:
-        return "free"
-    if "vip" in (sub.payment_type or ""):
+        return "love_pro"
+    payment = sub.payment_type or ""
+    if "vip" in payment or payment == "referral_vip":
         return "vip"
     return "love_pro"
 
@@ -62,7 +62,6 @@ async def analyze(
                 status_code=403,
                 detail="UPGRADE_REQUIRED:Ліміт 50 аналізів на місяць вичерпано. Переходь на VIP 👑 для безліміту"
             )
-    # vip — без ліміту
 
     contact_id = None
     if crush_name and crush_name.strip():
@@ -162,7 +161,6 @@ async def get_crushes(telegram_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
-
     if plan == "free":
         raise HTTPException(
             status_code=403,
