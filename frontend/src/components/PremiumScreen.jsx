@@ -61,11 +61,7 @@ const handlePay = (plan) => {
   if (paymentMethod === 'stars') {
     const tg = window.Telegram?.WebApp
     if (tg) {
-      // Закриваємо Mini App і відкриваємо бота з командою оплати
-      tg.close()
-      setTimeout(() => {
-        window.open(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`, '_blank')
-      }, 300)
+      tg.openTelegramLink(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`)
     } else {
       window.open(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`, '_blank')
     }
