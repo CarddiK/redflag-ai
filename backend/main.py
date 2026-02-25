@@ -1,21 +1,30 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from database import engine, Base
+from contextlib import asynccontextmanager
+from database import init_db
 from routes import users, analyze, generate
+import asyncio
+import threading
 import os
 
-load_dotenv()
+def run_bot():
+    import asyncio
+    from bot import start_bot
+    asyncio.run(start_bot())
 
-app = FastAPI(title="RedFlag AI Backend")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    print("✅ База даних підключена і таблиці створені")
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    yield
+
+app = FastAPI(title="RedFlag AI Backend", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://fluffy-macaron-7115dc.netlify.app",
-        "http://localhost:5173",
-        "*"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,13 +33,3 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(analyze.router)
 app.include_router(generate.router)
-
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("✅ База даних підключена і таблиці створені")
-
-@app.get("/")
-async def root():
-    return {"status": "ok", "message": "RedFlag AI Backend is running"}
