@@ -31,7 +31,25 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://fluffy-macaron-7115dc.netlify.app"
 @dp.message(CommandStart())
 async def start(message: Message):
     args = message.text.split()
-    ref_code = args[1] if len(args) > 1 else None
+    param = args[1] if len(args) > 1 else None
+
+    # Якщо це команда купівлі
+    if param and param.startswith("buy_"):
+        plan_id = param.replace("buy_", "")
+        plan = PLANS.get(plan_id)
+        if plan:
+            await bot.send_invoice(
+                chat_id=message.from_user.id,
+                title=plan["title"],
+                description=plan["description"],
+                payload=f"{plan_id}:{message.from_user.id}",
+                currency="XTR",
+                prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
+            )
+            return
+
+    # Звичайний старт з реферальним кодом
+    ref_code = param if param and not param.startswith("buy_") else None
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.telegram_id == str(message.from_user.id)))
