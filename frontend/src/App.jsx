@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { retrieveLaunchParams } from '@tma.js/sdk'
+import axios from 'axios'
 import Home from './pages/Home'
 import AnalyzeScreen from './components/AnalyzeScreen'
 import GenerateScreen from './components/GenerateScreen'
