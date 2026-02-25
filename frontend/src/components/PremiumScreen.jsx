@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createInvoice } from '../api'
 
 const PLANS = [
   {
@@ -54,21 +55,25 @@ const PLANS = [
 export default function PremiumScreen({ user, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('stars')
   const [selectedPlan, setSelectedPlan] = useState('love_pro')
+  const [loading, setLoading] = useState(false)
 
-const handlePay = (plan) => {
-  if (plan.disabled) return
+  const handlePay = async (plan) => {
+    if (plan.disabled) return
 
-  if (paymentMethod === 'stars') {
-    const tg = window.Telegram?.WebApp
-    if (tg) {
-      tg.openTelegramLink(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`)
+    if (paymentMethod === 'stars') {
+      try {
+        setLoading(true)
+        await createInvoice(user.telegram_id, plan.id)
+        window.Telegram?.WebApp?.close()
+      } catch (e) {
+        alert('Помилка при створенні інвойсу. Спробуй ще раз.')
+      } finally {
+        setLoading(false)
+      }
     } else {
-      window.open(`https://t.me/ai_redflag_bot?start=buy_${plan.id}`, '_blank')
+      alert('Оплата карткою буде доступна найближчим часом!')
     }
-  } else {
-    alert('Оплата карткою буде доступна найближчим часом!')
   }
-}
 
   return (
     <div className="screen">
@@ -79,7 +84,6 @@ const handlePay = (plan) => {
 
       <div className="screen-content">
 
-        {/* Заголовок */}
         <div className="premium-hero">
           <h2 className="premium-title">
             Стань тією,<br />
@@ -90,7 +94,6 @@ const handlePay = (plan) => {
           </p>
         </div>
 
-        {/* Перемикач способу оплати */}
         <div className="payment-toggle">
           <button
             className={`payment-tab ${paymentMethod === 'stars' ? 'active' : ''}`}
@@ -112,7 +115,6 @@ const handlePay = (plan) => {
           </div>
         )}
 
-        {/* Плани */}
         <div className="plans-list">
           {PLANS.map(plan => (
             <div
@@ -160,8 +162,9 @@ const handlePay = (plan) => {
                   className={`plan-btn ${selectedPlan === plan.id ? 'active' : ''}`}
                   style={selectedPlan === plan.id ? { background: plan.color } : {}}
                   onClick={(e) => { e.stopPropagation(); handlePay(plan) }}
+                  disabled={loading}
                 >
-                  {plan.cta}
+                  {loading && selectedPlan === plan.id ? '⏳ Завантаження...' : plan.cta}
                 </button>
               )}
 
@@ -172,13 +175,11 @@ const handlePay = (plan) => {
           ))}
         </div>
 
-        {/* FOMO */}
         <div className="fomo-banner">
           <span className="fomo-dot" />
           <span>⚡️ Акційна ціна діє обмежений час</span>
         </div>
 
-        {/* Соціальний доказ */}
         <div className="social-proof">
           <p className="social-quote">
             "Бот помітив що він пише мені тільки коли йому нудно. Я змінила тактику і тепер він сам кличе на побачення щотижня!"
@@ -186,7 +187,6 @@ const handlePay = (plan) => {
           <p className="social-author">— Катя, 22 роки</p>
         </div>
 
-        {/* Технологія */}
         <div className="tech-note">
           Використовуємо <strong>GPT-4o</strong> для максимально точного аналізу контексту та емоцій
         </div>
