@@ -1,15 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_
 from database import get_db
-from models import User, Analysis, Contact
+from models import User, Analysis, Contact, Subscription
 from services.openai_service import analyze_screenshots, analyze_outfit, compare_crushes
-from typing import List, Optional
+from typing import List
 import base64
+from datetime import datetime
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
-FREE_ANALYSES_LIMIT = 3  # збільшено для тестування
+FREE_ANALYSES_LIMIT = 3
+LOVE_PRO_ANALYSES_LIMIT = 50
+
+async def get_plan(user: User, db: AsyncSession) -> str:
+    """Повертає plan: free, love_pro, vip"""
+    if not user.is_premium:
+        return "free"
+    sub_result = await db.execute(
+        select(Subscription).where(
+            and_(
+                Subscription.user_id == user.id,
+                Subscription.status == "active",
+                Subscription.ends_at > datetime.now()
+            )
+        ).order_by(Subscription.started_at.desc())
+    )
+    sub = sub_result.scalar_one_or_none()
+    if not sub:
+        return "free"
+    if "vip" in (sub.payment_type or ""):
+        return "vip"
+    return "love_pro"
+
 
 @router.post("/")
 async def analyze(
@@ -21,14 +44,26 @@ async def analyze(
 ):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
-    if not user.is_premium and user.free_analyses_used >= (FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0)):
-        raise HTTPException(status_code=403, detail="Ліміт безкоштовних аналізів вичерпано. Оформи підписку.")
+    plan = await get_plan(user, db)
 
-    # Знаходимо або створюємо контакт — ОДИН контакт на ім'я
+    if plan == "free":
+        limit = FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0)
+        if user.free_analyses_used >= limit:
+            raise HTTPException(
+                status_code=403,
+                detail="UPGRADE_REQUIRED:Ліміт 3 безкоштовних аналізів вичерпано. Оформи Love Pro 💜 для 50 аналізів на місяць"
+            )
+    elif plan == "love_pro":
+        if user.free_analyses_used >= LOVE_PRO_ANALYSES_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail="UPGRADE_REQUIRED:Ліміт 50 аналізів на місяць вичерпано. Переходь на VIP 👑 для безліміту"
+            )
+    # vip — без ліміту
+
     contact_id = None
     if crush_name and crush_name.strip():
         contact_result = await db.execute(
@@ -40,12 +75,10 @@ async def analyze(
             )
         )
         contact = contact_result.scalar_one_or_none()
-
         if not contact:
             contact = Contact(user_id=user.id, name=crush_name.strip())
             db.add(contact)
             await db.flush()
-
         contact_id = contact.id
 
     screenshot_b64_list = []
@@ -55,7 +88,6 @@ async def analyze(
         screenshot_b64_list.append(f"data:image/jpeg;base64,{encoded}")
 
     analysis_result = await analyze_screenshots(screenshot_b64_list, context)
-
     if "error" in analysis_result:
         raise HTTPException(status_code=500, detail=analysis_result["error"])
 
@@ -72,11 +104,17 @@ async def analyze(
     )
     db.add(analysis)
 
-    if not user.is_premium:
+    if plan != "vip":
         user.free_analyses_used += 1
 
     await db.commit()
     await db.refresh(analysis)
+
+    free_left = None
+    if plan == "free":
+        free_left = max(0, FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0) - user.free_analyses_used)
+    elif plan == "love_pro":
+        free_left = max(0, LOVE_PRO_ANALYSES_LIMIT - user.free_analyses_used)
 
     return {
         "analysis_id": analysis.id,
@@ -88,7 +126,8 @@ async def analyze(
         "red_flags": analysis.red_flags,
         "summary": analysis.summary,
         "user_style": analysis.user_style,
-        "free_analyses_left": max(0, FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0) - user.free_analyses_used) if not user.is_premium else None
+        "free_analyses_left": free_left,
+        "plan": plan
     }
 
 
@@ -96,15 +135,12 @@ async def analyze(
 async def get_history(telegram_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     analyses = await db.execute(
         select(Analysis).where(Analysis.user_id == user.id).order_by(Analysis.created_at.desc())
     )
-    analyses = analyses.scalars().all()
-
     return [
         {
             "id": a.id,
@@ -114,7 +150,7 @@ async def get_history(telegram_id: str, db: AsyncSession = Depends(get_db)):
             "summary": a.summary,
             "created_at": str(a.created_at)
         }
-        for a in analyses
+        for a in analyses.scalars().all()
     ]
 
 
@@ -122,9 +158,16 @@ async def get_history(telegram_id: str, db: AsyncSession = Depends(get_db)):
 async def get_crushes(telegram_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
+
+    plan = await get_plan(user, db)
+
+    if plan == "free":
+        raise HTTPException(
+            status_code=403,
+            detail="UPGRADE_REQUIRED:Картотека крашів доступна в Love Pro 💜 або VIP 👑"
+        )
 
     contacts_result = await db.execute(
         select(Contact).where(Contact.user_id == user.id)
@@ -142,12 +185,10 @@ async def get_crushes(telegram_id: str, db: AsyncSession = Depends(get_db)):
             ).order_by(Analysis.created_at.asc())
         )
         analyses = analyses_result.scalars().all()
-
         if not analyses:
             continue
 
         avg_interest = sum(a.interest_level for a in analyses if a.interest_level) / len(analyses)
-
         crushes.append({
             "contact_id": contact.id,
             "name": contact.name,
@@ -161,11 +202,7 @@ async def get_crushes(telegram_id: str, db: AsyncSession = Depends(get_db)):
                 "created_at": str(analyses[-1].created_at)
             },
             "history": [
-                {
-                    "interest_level": a.interest_level,
-                    "tone": a.tone,
-                    "created_at": str(a.created_at)
-                }
+                {"interest_level": a.interest_level, "tone": a.tone, "created_at": str(a.created_at)}
                 for a in analyses
             ]
         })
@@ -182,52 +219,46 @@ async def compare(
 ):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
+
+    plan = await get_plan(user, db)
+    if plan == "free":
+        raise HTTPException(
+            status_code=403,
+            detail="UPGRADE_REQUIRED:Порівняння крашів доступне в Love Pro 💜 або VIP 👑"
+        )
 
     async def get_crush_data(contact_id: int):
         contact_result = await db.execute(select(Contact).where(Contact.id == contact_id))
         contact = contact_result.scalar_one_or_none()
         if not contact:
             return None
-
         analyses_result = await db.execute(
             select(Analysis).where(
-                and_(
-                    Analysis.user_id == user.id,
-                    Analysis.contact_id == contact_id
-                )
+                and_(Analysis.user_id == user.id, Analysis.contact_id == contact_id)
             )
         )
         analyses = analyses_result.scalars().all()
-
         avg_interest = sum(a.interest_level for a in analyses if a.interest_level) / len(analyses) if analyses else 0
-        tones = [a.tone for a in analyses if a.tone]
         all_red_flags = []
         for a in analyses:
             if a.red_flags:
                 for flag in a.red_flags:
-                    if isinstance(flag, dict):
-                        all_red_flags.append(flag.get("flag", ""))
-                    else:
-                        all_red_flags.append(flag)
-
+                    all_red_flags.append(flag.get("flag", "") if isinstance(flag, dict) else flag)
         return {
             "name": contact.name,
             "avg_interest": round(avg_interest, 1),
-            "tones": tones,
+            "tones": [a.tone for a in analyses if a.tone],
             "red_flags": list(set(all_red_flags))
         }
 
     crush1_data = await get_crush_data(crush1_id)
     crush2_data = await get_crush_data(crush2_id)
-
     if not crush1_data or not crush2_data:
         raise HTTPException(status_code=404, detail="Краша не знайдено")
 
-    comparison = await compare_crushes(crush1_data, crush2_data)
-    return comparison
+    return await compare_crushes(crush1_data, crush2_data)
 
 
 @router.post("/outfit")
@@ -239,16 +270,19 @@ async def analyze_outfit_route(
 ):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
+    plan = await get_plan(user, db)
+    if plan != "vip":
+        raise HTTPException(
+            status_code=403,
+            detail="UPGRADE_REQUIRED:AI-Стиліст доступний тільки в VIP 👑"
+        )
+
     contents = await file.read()
     image_data = base64.b64encode(contents).decode("utf-8")
-
     result = await analyze_outfit(image_data, destination)
-
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
-
     return result
