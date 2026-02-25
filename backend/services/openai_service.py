@@ -26,33 +26,38 @@ async def analyze_screenshots(screenshots: list[str], context: str = None) -> di
         if not messages_content:
             return {"error": "Не вдалося завантажити зображення"}
 
-        context_text = f"\nДодатковий контекст: {context}" if context else ""
+        context_text = f"\nКонтекст від юзера: {context}" if context else ""
 
+        # ЗОЛОТИЙ ПРОМПТ АНАЛІЗУ
         messages_content.append({
             "type": "text",
-            "text": f"""Ти — експерт з аналізу переписок та психології спілкування.
-Проаналізуй скріншоти та поверни ТІЛЬКИ JSON.
+                "text": f"""Ти — RedFlag AI, топовий цифровий психолог і експерт з маніпуляцій. 
+Твоє завдання: роздягнути цей діалог до істини. Ти не "асистент", ти — той самий прямолінійний бро, який каже правду в очі.
 
-ПРАВИЛА МОВИ ТА СТИЛЮ:
-- Якщо в переписці використовується сленг — використовуй його у відповіді
-- Якщо переписка формальна — відповідай формально
-- Використовуй емодзі у відповіді ТІЛЬКИ якщо вони є в переписці
-- Мова відповіді = мова переписки
+ПРАВИЛА АНАЛІЗУ:
+1. Читай між рядків. Хто домінує? Хто "в ігнорі"? Хто виправдовується?
+2. Звертай увагу на час відповідей та ініціативу.
+3. Якщо бачиш маніпуляції (газлайтинг, гостінг, лав-бомбінг) — називай їх прямо.
+
+ПРАВИЛА СТИЛЮ:
+- Мова: жива українська з використанням актуального сленгу (база, крінж, вайб, жиза, гост, шип).
+- Тон: іронічний, гострий, впевнений. Ніякої "води".
+- Формат: ТІЛЬКИ JSON.
 
 Формат відповіді:
 {{
   "interest_level": число 0-100,
-  "vibe_check": "коротка влучна фраза про загальний вайб діалогу",
-  "tone": "одне слово про тон",
-  "response_pattern": "як співрозмовник відповідає",
+  "vibe_check": "коротка іронічна фраза про вайб",
+  "power_balance": "хто веде в діалозі, а хто наздоганяє",
+  "hidden_meaning": "що насправді стоїть за цими словами (підтекст)",
   "red_flags": [
     {{
-      "flag": "назва червоного прапорця",
-      "psychotype": "психотип або поведінковий паттерн",
-      "advice": "конкретна порада як діяти"
+      "flag": "назва прапорця",
+      "psychotype": "опис паттерну",
+      "advice": "зухвала порада що робити"
     }}
   ],
-  "summary": "2-3 речення чесного аналізу",
+  "summary": "3-4 речення жорсткого та чесного вердикту",
   "user_style": {{
     "emoji_usage": "мало/середньо/багато",
     "message_length": "короткі/середні/довгі",
@@ -72,18 +77,19 @@ async def analyze_screenshots(screenshots: list[str], context: str = None) -> di
         return json.loads(response.choices[0].message.content)
 
     except Exception as e:
-        logger.error(f"Помилка в analyze_screenshots: {e}")
-        return {"error": "Не вдалося проаналізувати скріншот. Спробуй пізніше."}
+        logger.error(f"По error в analyze_screenshots: {e}")
+        return {"error": "Бот перегрівся від цього крінжу. Спробуй пізніше."}
 
 
 async def generate_response(analysis: dict, mode: str) -> list:
     try:
+        # ОНОВЛЕНІ РЕЖИМИ ВІДПОВІДЕЙ
         mode_prompts = {
-            "flirt": "фліртувати — грайливо, з інтригою, використовувати легкий український сленг",
-            "put_in_place": "поставити на місце — впевнено, база, без агресії, але жорстко",
-            "joke": "пожартувати — смішно, можна використовувати самоіронію",
-            "soft_reject": "м'яко відшити — ввічливо, але чітко",
-            "support": "підтримати — тепло, бути 'своїм' бро"
+            "flirt": "фліртувати — нахабно, грайливо, з підтекстом, ніяких кліше, тільки вогонь",
+            "put_in_place": "поставити на місце — інтелектуальне приниження, сарказм, жорстка база",
+            "joke": "пожартувати — гостро, іронічно, можна на межі фолу",
+            "soft_reject": "м'яко відшити — елегантно закрити двері, не лишаючи надії",
+            "support": "підтримати — як справжній бро, без соплів, але по факту"
         }
 
         mode_description = mode_prompts.get(mode, "відповісти нейтрально")
@@ -94,21 +100,23 @@ async def generate_response(analysis: dict, mode: str) -> list:
             messages=[
                 {
                     "role": "system",
-                    "content": f"""Ти допомагаєш скласти відповідь. Стиль: {mode_description}.
-Використовуй стиль користувача: емодзі {user_style.get('emoji_usage')}, довжина {user_style.get('message_length')}.
-Якщо контекст український — пиши живою українською мовою зі сленгом.
+                    "content": f"""Ти — голос користувача. Ти допомагаєш йому написати відповідь, яка розірве діалог.
+Стиль: {mode_description}.
+Використовуй стиль юзера (емодзі: {user_style.get('emoji_usage')}), але зроби відповідь в 10 разів цікавішою. 
+Уникай стилю "ШІ-помічника". Пиши як жива людина.
+
 Верни ТІЛЬКИ JSON:
 {{
   "variants": [
-    {{"label": "М'яко", "text": "..."}},
-    {{"label": "Середньо", "text": "..."}},
-    {{"label": "Зухвало", "text": "..."}}
+    {{"label": "Safe", "text": "обережний варіант"}},
+    {{"label": "Style", "text": "стильний варіант"}},
+    {{"label": "Toxic/Bold", "text": "зухвалий/нахабний варіант"}}
   ]
 }}"""
                 },
                 {
                     "role": "user",
-                    "content": f"Аналіз ситуації: {analysis.get('summary', '')}. Напиши варіанти."
+                    "content": f"Вердикт ситуації: {analysis.get('summary', '')}. Підтекст: {analysis.get('hidden_meaning', '')}. Напиши варіанти."
                 }
             ],
             max_tokens=500,
@@ -120,25 +128,27 @@ async def generate_response(analysis: dict, mode: str) -> list:
 
     except Exception as e:
         logger.error(f"Помилка в generate_response: {e}")
-        return [{"label": "Помилка", "text": "Не вдалося згенерувати відповідь."}]
+        return [{"label": "Помилка", "text": "Навіть я не знаю, що тут відповісти..."}]
 
 
 async def chat_with_bot(messages: list, mode: str) -> str:
     try:
         mode_system_prompts = {
-            "friend": "Ти — твій бро, кажеш як є, використовуєш сленг (база, жиза), багато жартуєш.",
-            "psychologist": "Ти — емпатичний психолог, говориш обережно, допомагаєш розібратися в собі.",
-            "coach": "Ти — коуч. Твій підхід: 'Менше соплів, більше діла'. Даєш чіткі інструкції.",
-            "honest": "Ти — максимально прямий. Якщо людина робить фігню — ти так і кажеш. Без цензури (але в межах етики).",
-            "stylist": "Ти — стиліст з гострим язиком але добрим серцем. Даєш чіткі поради по стилю та образу."
+            "friend": "Ти — твій бро. Кажеш правду, матюкаєшся (в міру), кидаєш бази, не любиш ниття.",
+            "psychologist": "Ти — професор психології, який втомився від людської тупості, але реально допомагає.",
+            "coach": "Ти — жорсткий коуч. Твій підхід: 'Встала і пішла'. Тільки конкретні дії.",
+            "honest": "Ти — дзеркало. Максимально жорстка правда. Якщо юзер — 'запасний варіант', ти так і кажеш.",
+            "stylist": "Ти — фешн-ікона. Твій язик гостріший за підбори. Оцінюй лук без жалю."
         }
 
         system_prompt = mode_system_prompts.get(mode, mode_system_prompts["friend"])
-        full_system_prompt = f"{system_prompt} Спілкуйся тією мовою, якою пише користувач. Використовуй сленг, якщо це доречно."
-
+        
         response = await client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": full_system_prompt}] + messages,
+            messages=[{
+                "role": "system", 
+                "content": f"{system_prompt} Пиши живою мовою, використовуй сленг. Не будь роботом."
+            }] + messages,
             max_tokens=500
         )
 
@@ -146,84 +156,4 @@ async def chat_with_bot(messages: list, mode: str) -> str:
 
     except Exception as e:
         logger.error(f"Помилка в chat_with_bot: {e}")
-        return "Вибач, у мене стався внутрішній збій. Давай спробуємо ще раз?"
-
-
-async def analyze_outfit(image_data: str, destination: str) -> dict:
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
-                    },
-                    {
-                        "type": "text",
-                        "text": f"""Ти — стиліст з гострим язиком але добрим серцем.
-Людина зібралась: {destination}
-Оціни образ та поверни ТІЛЬКИ JSON:
-{{
-  "vibe": "одна фраза про загальний вайб образу",
-  "score": число 0-100,
-  "what_works": ["що реально добре", "що зайшло"],
-  "fix_this": ["що змінити", "що не підходить для події"],
-  "final_verdict": "2-3 речення фінального вердикту з характером"
-}}"""
-                    }
-                ]
-            }],
-            max_tokens=600,
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
-
-    except Exception as e:
-        logger.error(f"Помилка в analyze_outfit: {e}")
-        return {"error": "Не вдалося проаналізувати образ. Спробуй ще раз."}
-
-
-async def compare_crushes(crush1: dict, crush2: dict) -> dict:
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Ти — експерт з аналізу відносин. Порівнюєш двох людей чесно і з гумором."
-                },
-                {
-                    "role": "user",
-                    "content": f"""Порівняй двох людей на основі аналізів переписок та поверни ТІЛЬКИ JSON:
-
-Людина 1 — {crush1.get('name')}:
-- Середній рівень інтересу: {crush1.get('avg_interest')}%
-- Тони: {crush1.get('tones')}
-- Червоні прапорці: {crush1.get('red_flags')}
-
-Людина 2 — {crush2.get('name')}:
-- Середній рівень інтересу: {crush2.get('avg_interest')}%
-- Тони: {crush2.get('tones')}
-- Червоні прапорці: {crush2.get('red_flags')}
-
-{{
-  "winner": "ім'я того хто більше підходить",
-  "winner_score": число 0-100,
-  "loser_score": число 0-100,
-  "verdict": "2-3 речення чесного порівняння з характером",
-  "crush1_pros": ["плюс1", "плюс2"],
-  "crush2_pros": ["плюс1", "плюс2"],
-  "final_advice": "фінальна порада що робити далі"
-}}"""
-                }
-            ],
-            max_tokens=600,
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
-
-    except Exception as e:
-        logger.error(f"Помилка в compare_crushes: {e}")
-        return {"error": "Не вдалося порівняти. Спробуй ще раз."}
+        return "Мозок кипить. Давай ще раз?"
