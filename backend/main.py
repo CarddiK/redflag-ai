@@ -40,6 +40,10 @@ app.include_router(generate.router)
 async def webhook(request: Request):
     from aiogram.types import Update
     from bot import dp, bot
-    update = Update.model_validate(await request.json(), context={"bot": bot})
-    await dp.feed_update(bot, update)
+    try:
+        data = await request.json()
+        update = Update.model_validate(data, context={"bot": bot})
+        await dp.feed_update(bot, update)
+    except Exception as e:
+        print(f"Webhook error: {e}")
     return {"ok": True}
