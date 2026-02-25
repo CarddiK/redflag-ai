@@ -36,6 +36,7 @@ export const getCrushes = async (telegram_id) => {
   return data
 }
 
+
 export const compareCrushes = async (telegram_id, crush1_id, crush2_id) => {
   const formData = new FormData()
   formData.append('telegram_id', telegram_id)
@@ -69,6 +70,7 @@ export const getUser = async (telegram_id) => {
   return data
 }
 
+
 export const analyzeOutfit = async (telegram_id, file, destination) => {
   const formData = new FormData()
   formData.append('telegram_id', telegram_id)
@@ -76,5 +78,12 @@ export const analyzeOutfit = async (telegram_id, file, destination) => {
   formData.append('file', file)
 
   const { data } = await axios.post(`${API_URL}/analyze/outfit`, formData)
+  return data
+}
+
+export const createInvoice = async (telegram_id, plan_id) => {
+  const { data } = await api.post('/users/create-invoice', null, {
+    params: { telegram_id, plan_id }
+  })
   return data
 }
