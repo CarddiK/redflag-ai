@@ -109,7 +109,7 @@ async def buy_plan(callback: CallbackQuery):
 
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    await pre_checkout_query.answer(ok=True)
 
 @dp.message(F.successful_payment)
 async def successful_payment(message: Message):
