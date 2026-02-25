@@ -1,16 +1,37 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from database import get_db
-from models import User, Analysis
+from models import User, Analysis, Subscription
 from services.openai_service import generate_response, chat_with_bot
 from pydantic import BaseModel
 from typing import List
+from datetime import datetime
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
 VALID_CHAT_MODES = ["friend", "psychologist", "coach", "honest", "stylist"]
 VALID_GENERATE_MODES = ["flirt", "put_in_place", "joke", "soft_reject", "support"]
+PREMIUM_CHAT_MODES = ["psychologist", "coach", "honest", "stylist"]
+
+async def get_plan(user: User, db: AsyncSession) -> str:
+    if not user.is_premium:
+        return "free"
+    sub_result = await db.execute(
+        select(Subscription).where(
+            and_(
+                Subscription.user_id == user.id,
+                Subscription.status == "active",
+                Subscription.ends_at > datetime.now()
+            )
+        ).order_by(Subscription.started_at.desc())
+    )
+    sub = sub_result.scalar_one_or_none()
+    if not sub:
+        return "free"
+    if "vip" in (sub.payment_type or ""):
+        return "vip"
+    return "love_pro"
 
 class GenerateRequest(BaseModel):
     telegram_id: str
@@ -29,29 +50,29 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
 
     result = await db.execute(select(User).where(User.telegram_id == request.telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
-#    if not user.is_premium:
-#        raise HTTPException(status_code=403, detail="Генератор відповідей доступний тільки в Premium")
+    plan = await get_plan(user, db)
+    if plan == "free":
+        raise HTTPException(
+            status_code=403,
+            detail="UPGRADE_REQUIRED:Генератор відповідей доступний в Love Pro 💜 або VIP 👑"
+        )
 
     analysis_result = await db.execute(select(Analysis).where(Analysis.id == request.analysis_id))
     analysis = analysis_result.scalar_one_or_none()
-
     if not analysis:
         raise HTTPException(status_code=404, detail="Аналіз не знайдено")
 
-    analysis_dict = {
+    variants = await generate_response({
         "summary": analysis.summary,
         "user_style": analysis.user_style,
         "tone": analysis.tone,
         "interest_level": analysis.interest_level
-    }
+    }, request.mode)
 
-    variants = await generate_response(analysis_dict, request.mode)
     return {"variants": variants}
-
 
 @router.post("/chat")
 async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
@@ -60,9 +81,15 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(select(User).where(User.telegram_id == request.telegram_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
+
+    plan = await get_plan(user, db)
+    if plan == "free" and request.mode in PREMIUM_CHAT_MODES:
+        raise HTTPException(
+            status_code=403,
+            detail="UPGRADE_REQUIRED:Цей режим чату доступний в Love Pro 💜 або VIP 👑"
+        )
 
     response = await chat_with_bot(request.messages, request.mode)
     return {"response": response}
