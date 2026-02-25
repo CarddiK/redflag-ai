@@ -28,20 +28,24 @@ async def get_plan(user: User, db: AsyncSession) -> str:
     )
     sub = sub_result.scalar_one_or_none()
     if not sub:
-        return "free"
-    if "vip" in (sub.payment_type or ""):
+        return "love_pro"
+    payment = sub.payment_type or ""
+    if "vip" in payment or payment == "referral_vip":
         return "vip"
     return "love_pro"
+
 
 class GenerateRequest(BaseModel):
     telegram_id: str
     analysis_id: int
     mode: str
 
+
 class ChatRequest(BaseModel):
     telegram_id: str
     mode: str
     messages: List[dict]
+
 
 @router.post("/response")
 async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db)):
@@ -73,6 +77,7 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
     }, request.mode)
 
     return {"variants": variants}
+
 
 @router.post("/chat")
 async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
