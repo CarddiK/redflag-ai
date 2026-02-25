@@ -79,6 +79,29 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
 
     return _user_response(user)
 
+@router.post("/create-invoice")
+async def create_invoice(
+    telegram_id: str,
+    plan_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    from bot import bot, PLANS
+    from aiogram.types import LabeledPrice
+
+    plan = PLANS.get(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="План не знайдено")
+
+    await bot.send_invoice(
+        chat_id=int(telegram_id),
+        title=plan["title"],
+        description=plan["description"],
+        payload=f"{plan_id}:{telegram_id}",
+        currency="XTR",
+        prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
+    )
+    return {"ok": True}
+
 @router.get("/{telegram_id}")
 async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
