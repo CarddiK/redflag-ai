@@ -1,80 +1,140 @@
-import asyncio
-import os
-import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from dotenv import load_dotenv
-
-load_dotenv()
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from database import AsyncSessionLocal
+from models import User, Subscription
+from sqlalchemy import select
+from datetime import datetime, timedelta
+import os
 
 bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
 dp = Dispatcher()
 
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://placeholder.com")
+PLANS = {
+    "love_pro": {
+        "title": "Love Pro 💜",
+        "description": "50 аналізів на місяць, всі режими відповідей, картотека крашів",
+        "stars": 100,
+        "days": 30,
+    },
+    "vip": {
+        "title": "VIP 👑",
+        "description": "Безлімітні аналізи, всі функції, AI-Стиліст",
+        "stars": 250,
+        "days": 30,
+    }
+}
+
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://fluffy-macaron-7115dc.netlify.app")
 
 @dp.message(CommandStart())
-async def start(message: types.Message):
+async def start(message: Message):
     args = message.text.split()
-    referral_code = args[1] if len(args) > 1 else None
+    ref_code = args[1] if len(args) > 1 else None
 
-    user = message.from_user
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.telegram_id == str(message.from_user.id)))
+        user = result.scalar_one_or_none()
 
-    # Формуємо URL з реферальним кодом якщо є
-    webapp_url = WEBAPP_URL
-    if referral_code:
-        webapp_url = f"{WEBAPP_URL}?ref={referral_code}"
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🔍 Відкрити RedFlag AI",
-                web_app=WebAppInfo(url=webapp_url)
+        if not user:
+            import hashlib
+            user = User(
+                telegram_id=str(message.from_user.id),
+                username=message.from_user.username,
+                referral_code=hashlib.md5(str(message.from_user.id).encode()).hexdigest()[:8].upper()
             )
-        ],
-        [
-            InlineKeyboardButton(
-                text="👥 Запросити друга",
-                callback_data="get_referral"
-            )
-        ]
-    ])
+            db.add(user)
+            await db.flush()
+
+            if ref_code:
+                ref_result = await db.execute(select(User).where(User.referral_code == ref_code))
+                referrer = ref_result.scalar_one_or_none()
+                if referrer and referrer.telegram_id != str(message.from_user.id):
+                    user.referred_by = referrer.id
+                    referrer.referral_count = (referrer.referral_count or 0) + 1
+
+            await db.commit()
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": WEBAPP_URL})
+    builder.button(text="💎 Love Pro — 100 ⭐️", callback_data="buy_love_pro")
+    builder.button(text="👑 VIP — 250 ⭐️", callback_data="buy_vip")
+    builder.adjust(1)
 
     await message.answer(
-        f"Привіт, {user.first_name}! 👋\n\n"
-        f"Я RedFlag AI — твій особистий радник у спілкуванні та стосунках.\n\n"
-        f"Що вмію:\n"
-        f"🔍 Аналізую переписки\n"
-        f"✍️ Генерую відповіді у твоєму стилі\n"
-        f"👗 Оцінюю образи\n"
-        f"💬 Спілкуюся як друг, психолог або коуч\n\n"
-        f"Натисни кнопку щоб почати 👇",
-        reply_markup=keyboard
+        "👋 Привіт! Я RedFlag AI — твій особистий радник у стосунках.\n\n"
+        "🔍 Аналізую переписки\n"
+        "💬 Генерую відповіді\n"
+        "💘 Веду картотеку крашів\n\n"
+        "Натисни кнопку щоб відкрити додаток 👇",
+        reply_markup=builder.as_markup()
     )
 
-@dp.callback_query(lambda c: c.data == "get_referral")
-async def get_referral(callback: types.CallbackQuery):
-    user_id = str(callback.from_user.id)
+@dp.callback_query(F.data.startswith("buy_"))
+async def buy_plan(callback: CallbackQuery):
+    plan_id = callback.data.replace("buy_", "")
+    plan = PLANS.get(plan_id)
 
-    import hashlib
-    referral_code = hashlib.md5(user_id.encode()).hexdigest()[:8].upper()
-    referral_link = f"https://t.me/ai_redflag_bot?start={referral_code}"
+    if not plan:
+        return
 
-    await callback.message.answer(
-        f"🔗 Твоє реферальне посилання:\n\n"
-        f"`{referral_link}`\n\n"
-        f"Запроси 2 друзів — отримай +3 безкоштовних аналізи! 🎁\n\n"
-        f"Просто скинь це посилання другу 👆",
-        parse_mode="Markdown"
+    await bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=plan["title"],
+        description=plan["description"],
+        payload=f"{plan_id}:{callback.from_user.id}",
+        currency="XTR",  # Telegram Stars
+        prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
     )
     await callback.answer()
 
-async def main():
-    logger.info("🤖 Бот запущено")
-    await dp.start_polling(bot)
+@dp.pre_checkout_query()
+async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@dp.message(F.successful_payment)
+async def successful_payment(message: Message):
+    payload = message.successful_payment.invoice_payload
+    plan_id, telegram_id = payload.split(":")
+
+    plan = PLANS.get(plan_id)
+    if not plan:
+        return
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
+
+        if user:
+            user.is_premium = True
+            sub = Subscription(
+                user_id=user.id,
+                status="active",
+                started_at=datetime.now(),
+                ends_at=datetime.now() + timedelta(days=plan["days"]),
+                payment_type=f"stars_{plan_id}"
+            )
+            db.add(sub)
+            await db.commit()
+
+    await message.answer(
+        f"🎉 Оплата успішна!\n\n"
+        f"✅ {plan['title']} активовано на 30 днів\n\n"
+        f"Відкрий додаток і користуйся всіма можливостями! 🚀"
+    )
+
+@dp.callback_query(F.data == "get_referral")
+async def get_referral(callback: CallbackQuery):
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.telegram_id == str(callback.from_user.id)))
+        user = result.scalar_one_or_none()
+
+        if user:
+            link = f"https://t.me/ai_redflag_bot?start={user.referral_code}"
+            await callback.message.answer(f"🔗 Твоє реферальне посилання:\n{link}")
+
+    await callback.answer()
+
+async def start_bot():
+    await dp.start_polling(bot)
