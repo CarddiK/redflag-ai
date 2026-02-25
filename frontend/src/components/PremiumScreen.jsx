@@ -55,11 +55,18 @@ export default function PremiumScreen({ user, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('stars')
   const [selectedPlan, setSelectedPlan] = useState('love_pro')
 
-  const handlePay = (plan) => {
-    if (plan.disabled) return
-    // Тут буде логіка оплати
-    alert(`Оплата ${plan.name} через ${paymentMethod === 'stars' ? 'Telegram Stars' : 'карту'} — буде підключено на етапі деплою`)
+const handlePay = (plan) => {
+  if (plan.disabled) return
+
+  if (paymentMethod === 'stars') {
+    // Відкриваємо бота для оплати через Stars
+    const planParam = plan.id === 'love_pro' ? 'buy_love_pro' : 'buy_vip'
+    window.Telegram?.WebApp?.openTelegramLink(`https://t.me/ai_redflag_bot?start=${planParam}`)
+  } else {
+    // Wayforpay — буде додано пізніше
+    alert('Оплата карткою буде доступна найближчим часом!')
   }
+}
 
   return (
     <div className="screen">
