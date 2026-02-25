@@ -64,6 +64,11 @@ export const sendChatMessage = async (telegram_id, mode, messages) => {
   return data
 }
 
+export const getUser = async (telegram_id) => {
+  const { data } = await api.get(`/users/${telegram_id}`)
+  return data
+}
+
 export const analyzeOutfit = async (telegram_id, file, destination) => {
   const formData = new FormData()
   formData.append('telegram_id', telegram_id)
