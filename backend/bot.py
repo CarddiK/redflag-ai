@@ -29,6 +29,7 @@ PLANS = {
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://fluffy-macaron-7115dc.netlify.app")
 
+
 async def apply_referral_reward(referrer: User, db):
     count = referrer.referral_count or 0
     print(f"REFERRAL REWARD CHECK: count={count} for user {referrer.telegram_id}")
@@ -61,10 +62,37 @@ async def apply_referral_reward(referrer: User, db):
         db.add(sub)
         print(f"REFERRAL REWARD: VIP 2 weeks for {referrer.telegram_id}")
 
+
+async def process_referral(new_telegram_id: str, ref_code: str, db):
+    """Обробка реферального коду — викликається і з бота і з фронтенду"""
+    ref_result = await db.execute(select(User).where(User.referral_code == ref_code))
+    referrer = ref_result.scalar_one_or_none()
+
+    if not referrer or referrer.telegram_id == new_telegram_id:
+        return False
+
+    # Перевіряємо чи цей юзер вже не був зарахований
+    new_user_result = await db.execute(select(User).where(User.telegram_id == new_telegram_id))
+    new_user = new_user_result.scalar_one_or_none()
+
+    if new_user and new_user.referred_by:
+        print(f"REFERRAL SKIP: {new_telegram_id} already has referrer")
+        return False
+
+    if new_user:
+        new_user.referred_by = referrer.id
+
+    referrer.referral_count = (referrer.referral_count or 0) + 1
+    await apply_referral_reward(referrer, db)
+    print(f"REFERRAL OK: {new_telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
+    return True
+
+
 @dp.message(CommandStart())
 async def start(message: Message):
     args = message.text.split()
     param = args[1] if len(args) > 1 else None
+    print(f"START: user={message.from_user.id} param={param}")
 
     # Якщо це команда купівлі
     if param and param.startswith("buy_"):
@@ -88,6 +116,7 @@ async def start(message: Message):
         user = result.scalar_one_or_none()
 
         if not user:
+            # Новий юзер — створюємо
             user = User(
                 telegram_id=str(message.from_user.id),
                 username=message.from_user.username,
@@ -97,17 +126,17 @@ async def start(message: Message):
             await db.flush()
 
             if ref_code:
-                ref_result = await db.execute(select(User).where(User.referral_code == ref_code))
-                referrer = ref_result.scalar_one_or_none()
-                if referrer and referrer.telegram_id != str(message.from_user.id):
-                    user.referred_by = referrer.id
-                    referrer.referral_count = (referrer.referral_count or 0) + 1
-                    await apply_referral_reward(referrer, db)
-                    print(f"REFERRAL: {message.from_user.id} referred by {referrer.telegram_id}, count: {referrer.referral_count}")
+                await process_referral(str(message.from_user.id), ref_code, db)
 
             await db.commit()
 
-    # Передаємо реферальний код в URL Mini App
+        else:
+            # Юзер існує — додаємо реферал якщо ще не було
+            if ref_code and not user.referred_by:
+                await process_referral(str(message.from_user.id), ref_code, db)
+                await db.commit()
+
+    # Передаємо реферальний код в URL Mini App щоб фронтенд теж міг зарахувати
     webapp_url = f"{WEBAPP_URL}?ref={ref_code}" if ref_code else WEBAPP_URL
 
     builder = InlineKeyboardBuilder()
@@ -125,6 +154,7 @@ async def start(message: Message):
         reply_markup=builder.as_markup()
     )
 
+
 @dp.callback_query(F.data.startswith("buy_"))
 async def buy_plan(callback: CallbackQuery):
     plan_id = callback.data.replace("buy_", "")
@@ -141,10 +171,12 @@ async def buy_plan(callback: CallbackQuery):
     )
     await callback.answer()
 
+
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
     print(f"PRE CHECKOUT: {pre_checkout_query.id}")
     await pre_checkout_query.answer(ok=True)
+
 
 @dp.message(F.successful_payment)
 async def successful_payment(message: Message):
@@ -178,6 +210,7 @@ async def successful_payment(message: Message):
         f"Відкрий додаток і користуйся всіма можливостями! 🚀"
     )
 
+
 @dp.callback_query(F.data == "get_referral")
 async def get_referral(callback: CallbackQuery):
     async with AsyncSessionLocal() as db:
@@ -187,6 +220,7 @@ async def get_referral(callback: CallbackQuery):
             link = f"https://t.me/ai_redflag_bot?start={user.referral_code}"
             await callback.message.answer(f"🔗 Твоє реферальне посилання:\n{link}")
     await callback.answer()
+
 
 async def start_bot():
     await dp.start_polling(bot)
