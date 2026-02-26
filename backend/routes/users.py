@@ -169,11 +169,3 @@ def _user_response(user: User) -> dict:
         "referral_count": referral_count,
         "next_reward": next_reward
     }
-```
-
-Збережи і залий:
-```
-cd "D:\Work\RedFlag Ai"
-git add .
-git commit -m "fix referral system"
-git push
