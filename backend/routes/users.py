@@ -14,11 +14,12 @@ def generate_referral_code(telegram_id: str) -> str:
     return hashlib.md5(telegram_id.encode()).hexdigest()[:8].upper()
 
 async def apply_referral_reward(referrer: User, db: AsyncSession):
-    count = referrer.referral_count or 0  # вже оновлений count
+    count = referrer.referral_count or 0
+    print(f"REFERRAL REWARD CHECK: count={count} for {referrer.telegram_id}")
 
     if count == 2:
         referrer.bonus_analyses = (referrer.bonus_analyses or 0) + 10
-        print(f"REFERRAL REWARD: +10 analyses for user {referrer.telegram_id}")
+        print(f"REFERRAL REWARD: +10 analyses for {referrer.telegram_id}")
 
     elif count == 5:
         referrer.is_premium = True
@@ -30,7 +31,7 @@ async def apply_referral_reward(referrer: User, db: AsyncSession):
             payment_type="referral_love_pro"
         )
         db.add(sub)
-        print(f"REFERRAL REWARD: Love Pro 1 week for user {referrer.telegram_id}")
+        print(f"REFERRAL REWARD: Love Pro 1 week for {referrer.telegram_id}")
 
     elif count == 10:
         referrer.is_premium = True
@@ -42,12 +43,40 @@ async def apply_referral_reward(referrer: User, db: AsyncSession):
             payment_type="referral_vip"
         )
         db.add(sub)
-        print(f"REFERRAL REWARD: VIP 2 weeks for user {referrer.telegram_id}")
+        print(f"REFERRAL REWARD: VIP 2 weeks for {referrer.telegram_id}")
+
+
+async def process_referral(new_telegram_id: str, ref_code: str, db: AsyncSession):
+    """Обробка реферального коду"""
+    ref_result = await db.execute(select(User).where(User.referral_code == ref_code))
+    referrer = ref_result.scalar_one_or_none()
+
+    if not referrer or referrer.telegram_id == new_telegram_id:
+        print(f"REFERRAL SKIP: referrer not found or same user")
+        return False
+
+    # Перевіряємо чи юзер вже не має реферера
+    new_user_result = await db.execute(select(User).where(User.telegram_id == new_telegram_id))
+    new_user = new_user_result.scalar_one_or_none()
+
+    if new_user and new_user.referred_by:
+        print(f"REFERRAL SKIP: {new_telegram_id} already has referrer")
+        return False
+
+    if new_user:
+        new_user.referred_by = referrer.id
+
+    referrer.referral_count = (referrer.referral_count or 0) + 1
+    await apply_referral_reward(referrer, db)
+    print(f"REFERRAL OK: {new_telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
+    return True
+
 
 class UserCreate(BaseModel):
     telegram_id: str
     username: Optional[str] = None
     referral_code: Optional[str] = None
+
 
 @router.post("/")
 async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
@@ -55,6 +84,7 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
     user = result.scalar_one_or_none()
 
     if not user:
+        # Новий юзер
         user = User(
             telegram_id=user_data.telegram_id,
             username=user_data.username,
@@ -64,23 +94,21 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
         await db.flush()
 
         if user_data.referral_code:
-            referrer_result = await db.execute(
-                select(User).where(User.referral_code == user_data.referral_code)
-            )
-            referrer = referrer_result.scalar_one_or_none()
-
-            if referrer and referrer.telegram_id != user_data.telegram_id:
-                user.referred_by = referrer.id
-                # Спочатку збільшуємо count
-                referrer.referral_count = (referrer.referral_count or 0) + 1
-                # Потім видаємо нагороду з вже оновленим count
-                await apply_referral_reward(referrer, db)
-                print(f"REFERRAL: user {user_data.telegram_id} referred by {referrer.telegram_id}, count now: {referrer.referral_count}")
+            await process_referral(user_data.telegram_id, user_data.referral_code, db)
 
         await db.commit()
         await db.refresh(user)
 
+    else:
+        # Юзер існує — додаємо реферал якщо ще не було
+        if user_data.referral_code and not user.referred_by:
+            changed = await process_referral(user_data.telegram_id, user_data.referral_code, db)
+            if changed:
+                await db.commit()
+                await db.refresh(user)
+
     return _user_response(user)
+
 
 @router.post("/create-invoice")
 async def create_invoice(
@@ -105,6 +133,7 @@ async def create_invoice(
     )
     return {"ok": True}
 
+
 @router.get("/{telegram_id}")
 async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.telegram_id == telegram_id))
@@ -114,6 +143,7 @@ async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     return _user_response(user)
+
 
 def _user_response(user: User) -> dict:
     referral_count = user.referral_count or 0
@@ -139,3 +169,11 @@ def _user_response(user: User) -> dict:
         "referral_count": referral_count,
         "next_reward": next_reward
     }
+```
+
+Збережи і залий:
+```
+cd "D:\Work\RedFlag Ai"
+git add .
+git commit -m "fix referral system"
+git push
