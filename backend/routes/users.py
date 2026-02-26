@@ -14,13 +14,12 @@ def generate_referral_code(telegram_id: str) -> str:
     return hashlib.md5(telegram_id.encode()).hexdigest()[:8].upper()
 
 async def apply_referral_reward(referrer: User, db: AsyncSession):
-    count = referrer.referral_count or 0
+    count = referrer.referral_count or 0  # вже оновлений count
 
-    # 2 реферали — +10 аналізів
     if count == 2:
         referrer.bonus_analyses = (referrer.bonus_analyses or 0) + 10
+        print(f"REFERRAL REWARD: +10 analyses for user {referrer.telegram_id}")
 
-    # 5 рефералів — Love Pro на тиждень
     elif count == 5:
         referrer.is_premium = True
         sub = Subscription(
@@ -31,8 +30,8 @@ async def apply_referral_reward(referrer: User, db: AsyncSession):
             payment_type="referral_love_pro"
         )
         db.add(sub)
+        print(f"REFERRAL REWARD: Love Pro 1 week for user {referrer.telegram_id}")
 
-    # 10 рефералів — VIP на 2 тижні
     elif count == 10:
         referrer.is_premium = True
         sub = Subscription(
@@ -43,6 +42,7 @@ async def apply_referral_reward(referrer: User, db: AsyncSession):
             payment_type="referral_vip"
         )
         db.add(sub)
+        print(f"REFERRAL REWARD: VIP 2 weeks for user {referrer.telegram_id}")
 
 class UserCreate(BaseModel):
     telegram_id: str
@@ -71,8 +71,11 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
 
             if referrer and referrer.telegram_id != user_data.telegram_id:
                 user.referred_by = referrer.id
+                # Спочатку збільшуємо count
                 referrer.referral_count = (referrer.referral_count or 0) + 1
+                # Потім видаємо нагороду з вже оновленим count
                 await apply_referral_reward(referrer, db)
+                print(f"REFERRAL: user {user_data.telegram_id} referred by {referrer.telegram_id}, count now: {referrer.referral_count}")
 
         await db.commit()
         await db.refresh(user)
@@ -115,7 +118,6 @@ async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
 def _user_response(user: User) -> dict:
     referral_count = user.referral_count or 0
 
-    # Наступна нагорода
     if referral_count < 2:
         next_reward = {"at": 2, "desc": "+10 безкоштовних аналізів", "left": 2 - referral_count}
     elif referral_count < 5:
