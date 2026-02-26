@@ -10,7 +10,7 @@ const PLANS = [
     price_stars: null,
     color: '#636366',
     features: [
-      '3 аналізи на день',
+      '3 аналізи на тиждень',
       'Режим "Друг"',
       'Базова аналітика',
     ],
@@ -56,6 +56,7 @@ export default function PremiumScreen({ user, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('stars')
   const [selectedPlan, setSelectedPlan] = useState('love_pro')
   const [loading, setLoading] = useState(false)
+  const [showCardModal, setShowCardModal] = useState(false)
 
   const handlePay = async (plan) => {
     if (plan.disabled) return
@@ -71,8 +72,19 @@ export default function PremiumScreen({ user, onBack }) {
         setLoading(false)
       }
     } else {
-      alert('Оплата карткою буде доступна найближчим часом!')
+      setShowCardModal(true)
     }
+  }
+
+  const handleOpenManager = () => {
+    const url = 'https://t.me/shrekpaupau'
+    const tg = window.Telegram?.WebApp
+    if (tg) {
+      tg.openTelegramLink(url)
+    } else {
+      window.open(url, '_blank')
+    }
+    setShowCardModal(false)
   }
 
   return (
@@ -192,6 +204,24 @@ export default function PremiumScreen({ user, onBack }) {
         </div>
 
       </div>
+
+      {showCardModal && (
+        <div className="upgrade-overlay" onClick={() => setShowCardModal(false)}>
+          <div className="upgrade-modal" onClick={e => e.stopPropagation()}>
+            <div className="upgrade-icon">💳</div>
+            <h3 className="upgrade-title">Оплата карткою</h3>
+            <p className="upgrade-text">
+              Для оплати карткою напишіть нашому менеджеру
+            </p>
+            <button className="action-btn" onClick={handleOpenManager}>
+              Написати @shrekpaupau
+            </button>
+            <button className="upgrade-close" onClick={() => setShowCardModal(false)}>
+              Закрити
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
