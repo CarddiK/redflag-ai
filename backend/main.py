@@ -12,15 +12,13 @@ WEBHOOK_URL = f"https://redflag-ai-production.up.railway.app{WEBHOOK_PATH}"
 async def lifespan(app: FastAPI):
     await init_db()
     print("✅ База даних підключена і таблиці створені")
-    
-    # Встановлюємо webhook
-    from bot import bot, dp
-    await bot.set_webhook(WEBHOOK_URL)
+
+    from bot import bot
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
     print(f"✅ Webhook встановлено: {WEBHOOK_URL}")
+
     yield
-    
-    # Видаляємо webhook при зупинці
-    await bot.delete_webhook()
+    # НЕ видаляємо webhook при зупинці — щоб він залишався після редеплою
 
 app = FastAPI(title="RedFlag AI Backend", version="0.1.0", lifespan=lifespan)
 
