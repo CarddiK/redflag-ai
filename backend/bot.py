@@ -6,6 +6,7 @@ from database import AsyncSessionLocal
 from models import User, Subscription
 from sqlalchemy import select
 from datetime import datetime, timedelta
+import hashlib
 import os
 
 bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
@@ -28,6 +29,38 @@ PLANS = {
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://fluffy-macaron-7115dc.netlify.app")
 
+async def apply_referral_reward(referrer: User, db):
+    count = referrer.referral_count or 0
+    print(f"REFERRAL REWARD CHECK: count={count} for user {referrer.telegram_id}")
+
+    if count == 2:
+        referrer.bonus_analyses = (referrer.bonus_analyses or 0) + 10
+        print(f"REFERRAL REWARD: +10 analyses for {referrer.telegram_id}")
+
+    elif count == 5:
+        referrer.is_premium = True
+        sub = Subscription(
+            user_id=referrer.id,
+            status="active",
+            started_at=datetime.now(),
+            ends_at=datetime.now() + timedelta(weeks=1),
+            payment_type="referral_love_pro"
+        )
+        db.add(sub)
+        print(f"REFERRAL REWARD: Love Pro 1 week for {referrer.telegram_id}")
+
+    elif count == 10:
+        referrer.is_premium = True
+        sub = Subscription(
+            user_id=referrer.id,
+            status="active",
+            started_at=datetime.now(),
+            ends_at=datetime.now() + timedelta(weeks=2),
+            payment_type="referral_vip"
+        )
+        db.add(sub)
+        print(f"REFERRAL REWARD: VIP 2 weeks for {referrer.telegram_id}")
+
 @dp.message(CommandStart())
 async def start(message: Message):
     args = message.text.split()
@@ -48,7 +81,6 @@ async def start(message: Message):
             )
             return
 
-    # Звичайний старт з реферальним кодом
     ref_code = param if param and not param.startswith("buy_") else None
 
     async with AsyncSessionLocal() as db:
@@ -56,7 +88,6 @@ async def start(message: Message):
         user = result.scalar_one_or_none()
 
         if not user:
-            import hashlib
             user = User(
                 telegram_id=str(message.from_user.id),
                 username=message.from_user.username,
@@ -71,11 +102,16 @@ async def start(message: Message):
                 if referrer and referrer.telegram_id != str(message.from_user.id):
                     user.referred_by = referrer.id
                     referrer.referral_count = (referrer.referral_count or 0) + 1
+                    await apply_referral_reward(referrer, db)
+                    print(f"REFERRAL: {message.from_user.id} referred by {referrer.telegram_id}, count: {referrer.referral_count}")
 
             await db.commit()
 
+    # Передаємо реферальний код в URL Mini App
+    webapp_url = f"{WEBAPP_URL}?ref={ref_code}" if ref_code else WEBAPP_URL
+
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": WEBAPP_URL})
+    builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": webapp_url})
     builder.button(text="💎 Love Pro — 100 ⭐️", callback_data="buy_love_pro")
     builder.button(text="👑 VIP — 250 ⭐️", callback_data="buy_vip")
     builder.adjust(1)
@@ -93,16 +129,14 @@ async def start(message: Message):
 async def buy_plan(callback: CallbackQuery):
     plan_id = callback.data.replace("buy_", "")
     plan = PLANS.get(plan_id)
-
     if not plan:
         return
-
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=plan["title"],
         description=plan["description"],
         payload=f"{plan_id}:{callback.from_user.id}",
-        currency="XTR",  # Telegram Stars
+        currency="XTR",
         prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
     )
     await callback.answer()
@@ -149,11 +183,9 @@ async def get_referral(callback: CallbackQuery):
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.telegram_id == str(callback.from_user.id)))
         user = result.scalar_one_or_none()
-
         if user:
             link = f"https://t.me/ai_redflag_bot?start={user.referral_code}"
             await callback.message.answer(f"🔗 Твоє реферальне посилання:\n{link}")
-
     await callback.answer()
 
 async def start_bot():
