@@ -46,32 +46,6 @@ async def apply_referral_reward(referrer: User, db: AsyncSession):
         print(f"REFERRAL REWARD: VIP 2 weeks for {referrer.telegram_id}")
 
 
-async def process_referral(new_telegram_id: str, ref_code: str, db: AsyncSession):
-    """Обробка реферального коду"""
-    ref_result = await db.execute(select(User).where(User.referral_code == ref_code))
-    referrer = ref_result.scalar_one_or_none()
-
-    if not referrer or referrer.telegram_id == new_telegram_id:
-        print(f"REFERRAL SKIP: referrer not found or same user")
-        return False
-
-    # Перевіряємо чи юзер вже не має реферера
-    new_user_result = await db.execute(select(User).where(User.telegram_id == new_telegram_id))
-    new_user = new_user_result.scalar_one_or_none()
-
-    if new_user and new_user.referred_by:
-        print(f"REFERRAL SKIP: {new_telegram_id} already has referrer")
-        return False
-
-    if new_user:
-        new_user.referred_by = referrer.id
-
-    referrer.referral_count = (referrer.referral_count or 0) + 1
-    await apply_referral_reward(referrer, db)
-    print(f"REFERRAL OK: {new_telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
-    return True
-
-
 class UserCreate(BaseModel):
     telegram_id: str
     username: Optional[str] = None
@@ -84,7 +58,6 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
     user = result.scalar_one_or_none()
 
     if not user:
-        # Новий юзер
         user = User(
             telegram_id=user_data.telegram_id,
             username=user_data.username,
@@ -94,18 +67,32 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
         await db.flush()
 
         if user_data.referral_code:
-            await process_referral(user_data.telegram_id, user_data.referral_code, db)
+            referrer_result = await db.execute(
+                select(User).where(User.referral_code == user_data.referral_code)
+            )
+            referrer = referrer_result.scalar_one_or_none()
+            if referrer and referrer.telegram_id != user_data.telegram_id:
+                user.referred_by = referrer.id
+                referrer.referral_count = (referrer.referral_count or 0) + 1
+                await apply_referral_reward(referrer, db)
+                print(f"REFERRAL NEW: {user_data.telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
 
         await db.commit()
         await db.refresh(user)
 
     else:
-        # Юзер існує — додаємо реферал якщо ще не було
         if user_data.referral_code and not user.referred_by:
-            changed = await process_referral(user_data.telegram_id, user_data.referral_code, db)
-            if changed:
-                await db.commit()
-                await db.refresh(user)
+            referrer_result = await db.execute(
+                select(User).where(User.referral_code == user_data.referral_code)
+            )
+            referrer = referrer_result.scalar_one_or_none()
+            if referrer and referrer.telegram_id != user_data.telegram_id:
+                user.referred_by = referrer.id
+                referrer.referral_count = (referrer.referral_count or 0) + 1
+                await apply_referral_reward(referrer, db)
+                print(f"REFERRAL EXISTING: {user_data.telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
+            await db.commit()
+            await db.refresh(user)
 
     return _user_response(user)
 
