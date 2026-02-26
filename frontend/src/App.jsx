@@ -41,22 +41,27 @@ export default function App() {
       const tg = window.Telegram?.WebApp
       let telegramId = null
       let username = null
+      let ref = null
 
       if (tg && tg.initDataUnsafe?.user) {
         telegramId = String(tg.initDataUnsafe.user.id)
         username = tg.initDataUnsafe.user.username
+        // Реферальний код — спочатку з start_param потім з URL
+        ref = tg.initDataUnsafe?.start_param ||
+              new URLSearchParams(window.location.search).get('ref')
       } else {
         try {
           const { initData } = retrieveLaunchParams()
           if (initData?.user) {
             telegramId = String(initData.user.id)
             username = initData.user.username
+            ref = initData?.startParam ||
+                  new URLSearchParams(window.location.search).get('ref')
           }
         } catch {}
       }
 
       if (telegramId) {
-        const ref = new URLSearchParams(window.location.search).get('ref')
         const userData = await createUser(telegramId, username, ref)
         setUser(userData)
       } else {
@@ -89,12 +94,9 @@ export default function App() {
     setScreen('analyze')
   }
 
-  // Підраховуємо скільки аналізів залишилось
   const getAnalysesLeft = () => {
     if (!user) return 0
     if (user.is_premium) {
-      // Love Pro — 50 на місяць, VIP — безліміт
-      // Поки що просто показуємо залишок якщо є або ∞
       const used = user.free_analyses_used || 0
       const left = 50 - used
       return left > 0 ? left : '∞'
