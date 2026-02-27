@@ -8,6 +8,7 @@ import CrushesScreen from './components/CrushesScreen'
 import OutfitScreen from './components/OutfitScreen'
 import ReferralScreen from './components/ReferralScreen'
 import PremiumScreen from './components/PremiumScreen'
+import Onboarding from './components/Onboarding'
 import { createUser, getUser } from './api'
 import './index.css'
 
@@ -17,6 +18,7 @@ export default function App() {
   const [lastAnalysis, setLastAnalysis] = useState(null)
   const [prefilledCrush, setPrefilledCrush] = useState(null)
   const [upgradeMessage, setUpgradeMessage] = useState(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     initUser()
@@ -46,7 +48,6 @@ export default function App() {
       if (tg && tg.initDataUnsafe?.user) {
         telegramId = String(tg.initDataUnsafe.user.id)
         username = tg.initDataUnsafe.user.username
-        // Реферальний код — спочатку з start_param потім з URL
         ref = tg.initDataUnsafe?.start_param ||
               new URLSearchParams(window.location.search).get('ref')
       } else {
@@ -64,9 +65,14 @@ export default function App() {
       if (telegramId) {
         const userData = await createUser(telegramId, username, ref)
         setUser(userData)
+        // Показуємо онбординг тільки новим юзерам
+        const seen = localStorage.getItem(`onboarding_${telegramId}`)
+        if (!seen) setShowOnboarding(true)
       } else {
         const userData = await createUser('123456789', 'test_user', null)
         setUser(userData)
+        const seen = localStorage.getItem('onboarding_123456789')
+        if (!seen) setShowOnboarding(true)
       }
     } catch (e) {
       console.error('initUser error:', e)
@@ -77,6 +83,11 @@ export default function App() {
         console.error('Failed to create user:', err)
       }
     }
+  }
+
+  const handleOnboardingDone = () => {
+    if (user) localStorage.setItem(`onboarding_${user.telegram_id}`, '1')
+    setShowOnboarding(false)
   }
 
   const refreshUser = async () => {
@@ -111,6 +122,14 @@ export default function App() {
       <div className="loading">
         <div className="spinner" />
         <p>Завантаження...</p>
+      </div>
+    )
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="app">
+        <Onboarding onDone={handleOnboardingDone} />
       </div>
     )
   }
