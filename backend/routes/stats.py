@@ -3,27 +3,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from database import get_db
 from models import User, Analysis, Conversation, Subscription, OutfitAnalysis
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
-STATS_PASSWORD = os.getenv("STATS_PASSWORD", "redflag2026")
+STATS_PASSWORD = os.getenv("STATS_PASSWORD", "Stats1488!@#")
 
 @router.get("/{password}")
 async def get_stats(password: str, db: AsyncSession = Depends(get_db)):
     if password != STATS_PASSWORD:
         raise HTTPException(status_code=403, detail="Невірний пароль")
 
-    # Всього юзерів
     total_users = await db.scalar(select(func.count()).select_from(User))
 
-    # Юзери з рефералами (referral_count >= 2)
     referred_users = await db.scalar(
         select(func.count()).select_from(User).where(User.referred_by != None)
     )
 
-    # Топ реферерів (тільки ті хто привів 2+)
     top_referrers_result = await db.execute(
         select(User.username, User.telegram_id, User.referral_count)
         .where(User.referral_count >= 2)
@@ -35,12 +32,10 @@ async def get_stats(password: str, db: AsyncSession = Depends(get_db)):
         for r in top_referrers_result.all()
     ]
 
-    # Юзери з підпискою
     premium_users = await db.scalar(
         select(func.count()).select_from(User).where(User.is_premium == True)
     )
 
-    # Активні підписки
     active_subs = await db.scalar(
         select(func.count()).select_from(Subscription).where(
             and_(
@@ -50,7 +45,6 @@ async def get_stats(password: str, db: AsyncSession = Depends(get_db)):
         )
     )
 
-    # Підписки по типах
     subs_result = await db.execute(
         select(Subscription.payment_type, func.count().label("count"))
         .where(Subscription.status == "active")
@@ -58,10 +52,8 @@ async def get_stats(password: str, db: AsyncSession = Depends(get_db)):
     )
     subs_by_type = {r.payment_type: r.count for r in subs_result.all()}
 
-    # Всього аналізів скріншотів
     total_analyses = await db.scalar(select(func.count()).select_from(Analysis))
 
-    # Всього чатів по режимах
     chats_result = await db.execute(
         select(Conversation.mode, func.count().label("count"))
         .group_by(Conversation.mode)
@@ -69,11 +61,8 @@ async def get_stats(password: str, db: AsyncSession = Depends(get_db)):
     chats_by_mode = {r.mode: r.count for r in chats_result.all()}
     total_chats = sum(chats_by_mode.values())
 
-    # Всього аналізів стиліста
     total_outfit = await db.scalar(select(func.count()).select_from(OutfitAnalysis))
 
-    # Нові юзери за останні 7 днів
-    from datetime import timedelta
     week_ago = datetime.now() - timedelta(days=7)
     new_users_week = await db.scalar(
         select(func.count()).select_from(User).where(User.created_at >= week_ago)
