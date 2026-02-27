@@ -4,7 +4,6 @@ from database import Base
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True)
     telegram_id = Column(String, unique=True, nullable=False)
     username = Column(String, nullable=True)
@@ -18,7 +17,6 @@ class User(Base):
 
 class Contact(Base):
     __tablename__ = "contacts"
-
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
@@ -26,7 +24,6 @@ class Contact(Base):
 
 class Analysis(Base):
     __tablename__ = "analyses"
-
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     contact_id = Column(Integer, nullable=True)
@@ -41,16 +38,20 @@ class Analysis(Base):
 
 class Conversation(Base):
     __tablename__ = "conversations"
-
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     mode = Column(String, nullable=False)
     messages = Column(JSON, default=list)
     created_at = Column(DateTime, server_default=func.now())
 
+class OutfitAnalysis(Base):
+    __tablename__ = "outfit_analyses"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
 class Subscription(Base):
     __tablename__ = "subscriptions"
-
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     status = Column(String, default="inactive")
