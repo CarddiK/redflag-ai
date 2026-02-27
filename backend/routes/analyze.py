@@ -6,7 +6,7 @@ from models import User, Analysis, Contact, Subscription, OutfitAnalysis
 from services.openai_service import analyze_screenshots, analyze_outfit, compare_crushes
 from typing import List
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
@@ -34,6 +34,19 @@ async def get_plan(user: User, db: AsyncSession) -> str:
     return "love_pro"
 
 
+async def check_and_reset_analyses(user: User, plan: str, db: AsyncSession):
+    """Скидає лічильник аналізів якщо минув тиждень (free) або місяць (premium)"""
+    now = datetime.now()
+    reset_at = user.analyses_reset_at or user.created_at or now
+    period = timedelta(weeks=1) if plan == "free" else timedelta(days=30)
+
+    if (now - reset_at) >= period:
+        user.free_analyses_used = 0
+        user.analyses_reset_at = now
+        await db.flush()
+        print(f"RESET analyses for {user.telegram_id} plan={plan}")
+
+
 @router.post("/")
 async def analyze(
     telegram_id: str = Form(...),
@@ -48,6 +61,9 @@ async def analyze(
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
+
+    # Скидаємо лічильник якщо минув потрібний період
+    await check_and_reset_analyses(user, plan, db)
 
     if plan == "free":
         limit = FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0)
@@ -273,7 +289,6 @@ async def analyze_outfit_route(
 
     plan = await get_plan(user, db)
 
-    # Free юзери мають 2 безкоштовні спроби стиліста
     if plan == "free":
         outfit_count = await db.scalar(
             select(func.count()).select_from(OutfitAnalysis).where(
@@ -292,7 +307,6 @@ async def analyze_outfit_route(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
-    # Логуємо для статистики
     outfit_log = OutfitAnalysis(user_id=user.id)
     db.add(outfit_log)
     await db.commit()
