@@ -78,6 +78,14 @@ export default function Home({ user, onNavigate, analysesLeft }) {
             </div>
           </button>
 
+          <button className="menu-card" onClick={() => onNavigate('chat')}>
+            <span className="card-icon">💬</span>
+            <div className="card-content">
+              <span className="card-title">Чат</span>
+              <span className="card-desc">{isPremium ? 'Всі режими' : 'Тільки Друг'}</span>
+            </div>
+          </button>
+
           <button className="menu-card" onClick={() => onNavigate('outfit')}>
             <span className="card-icon">👗</span>
             <div className="card-content">
@@ -85,14 +93,6 @@ export default function Home({ user, onNavigate, analysesLeft }) {
               <span className="card-desc">{isPremium ? 'Оцінка образу' : '2 безкоштовно'}</span>
             </div>
           </button>
-
-         <button className="menu-card" onClick={() => onNavigate('outfit')}>
-          <span className="card-icon">👗</span>
-          <div className="card-content">
-            <span className="card-title">Стиліст</span>
-            <span className="card-desc">{isPremium ? 'Оцінка образу' : '2 безкоштовно'}</span>
-          </div>
-        </button>
         </div>
       </div>
 
