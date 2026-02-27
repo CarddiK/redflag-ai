@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from database import get_db
-from models import User, Analysis, Contact, Subscription
+from models import User, Analysis, Contact, Subscription, OutfitAnalysis
 from services.openai_service import analyze_screenshots, analyze_outfit, compare_crushes
 from typing import List
 import base64
@@ -283,4 +283,10 @@ async def analyze_outfit_route(
     result = await analyze_outfit(image_data, destination)
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+
+    # Логуємо для статистики
+    outfit_log = OutfitAnalysis(user_id=user.id)
+    db.add(outfit_log)
+    await db.commit()
+
     return result
