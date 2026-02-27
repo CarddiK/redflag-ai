@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from database import get_db
-from models import User, Analysis, Subscription
+from models import User, Analysis, Subscription, Conversation
 from services.openai_service import generate_response, chat_with_bot
 from pydantic import BaseModel
 from typing import List
@@ -34,18 +34,15 @@ async def get_plan(user: User, db: AsyncSession) -> str:
         return "vip"
     return "love_pro"
 
-
 class GenerateRequest(BaseModel):
     telegram_id: str
     analysis_id: int
     mode: str
 
-
 class ChatRequest(BaseModel):
     telegram_id: str
     mode: str
     messages: List[dict]
-
 
 @router.post("/response")
 async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db)):
@@ -78,7 +75,6 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
 
     return {"variants": variants}
 
-
 @router.post("/chat")
 async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     if request.mode not in VALID_CHAT_MODES:
@@ -97,4 +93,14 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         )
 
     response = await chat_with_bot(request.messages, request.mode)
+
+    # Логуємо для статистики
+    conv = Conversation(
+        user_id=user.id,
+        mode=request.mode,
+        messages=request.messages
+    )
+    db.add(conv)
+    await db.commit()
+
     return {"response": response}
