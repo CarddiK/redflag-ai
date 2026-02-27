@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from database import get_db
 from models import User, Analysis, Contact, Subscription, OutfitAnalysis
 from services.openai_service import analyze_screenshots, analyze_outfit, compare_crushes
@@ -272,11 +272,19 @@ async def analyze_outfit_route(
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
-    if plan != "vip":
-        raise HTTPException(
-            status_code=403,
-            detail="UPGRADE_REQUIRED:AI-Стиліст доступний тільки в VIP 👑"
+
+    # Free юзери мають 2 безкоштовні спроби стиліста
+    if plan == "free":
+        outfit_count = await db.scalar(
+            select(func.count()).select_from(OutfitAnalysis).where(
+                OutfitAnalysis.user_id == user.id
+            )
         )
+        if outfit_count >= 2:
+            raise HTTPException(
+                status_code=403,
+                detail="UPGRADE_REQUIRED:Безкоштовні спроби стиліста вичерпано (2/2). Отримай VIP 👑 для безліміту"
+            )
 
     contents = await file.read()
     image_data = base64.b64encode(contents).decode("utf-8")
