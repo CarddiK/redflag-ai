@@ -1,10 +1,25 @@
+import { useState, useEffect } from 'react'
+
 export default function Home({ user, onNavigate, analysesLeft }) {
+  const [showPrivacy, setShowPrivacy] = useState(false)
+
+  useEffect(() => {
+    const seen = localStorage.getItem('privacy_seen')
+    if (!seen) {
+      setShowPrivacy(true)
+    }
+  }, [])
+
+  const acceptPrivacy = () => {
+    localStorage.setItem('privacy_seen', '1')
+    setShowPrivacy(false)
+  }
+
   const handleCopyReferral = (e) => {
     e.stopPropagation()
     navigator.clipboard.writeText(user.referral_link)
   }
 
-  // Використовуємо analysesLeft з App.jsx або рахуємо локально
   const leftCount = analysesLeft !== undefined
     ? analysesLeft
     : user.is_premium
@@ -91,6 +106,42 @@ export default function Home({ user, onNavigate, analysesLeft }) {
           Копіювати
         </button>
       </div>
+
+      {/* Постійний банер приватності */}
+      <div className="privacy-banner" onClick={() => setShowPrivacy(true)}>
+        🔒 Ми не зберігаємо твої переписки — дані видаляються одразу після аналізу
+      </div>
+
+      {/* Popup приватності */}
+      {showPrivacy && (
+        <div className="upgrade-overlay" onClick={acceptPrivacy}>
+          <div className="privacy-modal" onClick={e => e.stopPropagation()}>
+            <div className="privacy-modal-icon">🔐</div>
+            <h3 className="privacy-modal-title">Твої дані в безпеці</h3>
+            <div className="privacy-modal-body">
+              <div className="privacy-item">
+                <span className="privacy-check">✓</span>
+                <span>Ми <strong>не зберігаємо</strong> твої переписки — скріншоти видаляються одразу після аналізу</span>
+              </div>
+              <div className="privacy-item">
+                <span className="privacy-check">✓</span>
+                <span>Аналіз виконує AI без участі людей</span>
+              </div>
+              <div className="privacy-item">
+                <span className="privacy-check">✓</span>
+                <span>Ми не передаємо дані третім особам</span>
+              </div>
+              <div className="privacy-item">
+                <span className="privacy-check">✓</span>
+                <span>Імена та дані крашів видно тільки тобі</span>
+              </div>
+            </div>
+            <button className="action-btn" onClick={acceptPrivacy}>
+              Зрозуміло, погнали 🚀
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
