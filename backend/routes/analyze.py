@@ -23,9 +23,9 @@ async def get_plan(user: User, db: AsyncSession) -> str:
                 Subscription.status == "active",
                 Subscription.ends_at > datetime.now()
             )
-        ).order_by(Subscription.started_at.desc())
+        ).order_by(Subscription.started_at.desc()).limit(1)
     )
-    sub = sub_result.scalar_one_or_none()
+    sub = sub_result.scalars().first()
     if not sub:
         return "love_pro"
     payment = sub.payment_type or ""
@@ -35,16 +35,17 @@ async def get_plan(user: User, db: AsyncSession) -> str:
 
 
 async def check_and_reset_analyses(user: User, plan: str, db: AsyncSession):
-    """Скидає лічильник аналізів якщо минув тиждень (free) або місяць (premium)"""
-    now = datetime.now()
-    reset_at = user.analyses_reset_at or user.created_at or now
-    period = timedelta(weeks=1) if plan == "free" else timedelta(days=30)
-
-    if (now - reset_at) >= period:
-        user.free_analyses_used = 0
-        user.analyses_reset_at = now
-        await db.flush()
-        print(f"RESET analyses for {user.telegram_id} plan={plan}")
+    try:
+        now = datetime.now()
+        reset_at = user.analyses_reset_at or user.created_at or now
+        period = timedelta(weeks=1) if plan == "free" else timedelta(days=30)
+        if (now - reset_at) >= period:
+            user.free_analyses_used = 0
+            user.analyses_reset_at = now
+            await db.flush()
+            print(f"RESET analyses for {user.telegram_id} plan={plan}")
+    except Exception as e:
+        print(f"RESET ERROR: {e}")
 
 
 @router.post("/")
@@ -61,8 +62,6 @@ async def analyze(
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
-
-    # Скидаємо лічильник якщо минув потрібний період
     await check_and_reset_analyses(user, plan, db)
 
     if plan == "free":
