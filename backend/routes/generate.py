@@ -24,9 +24,9 @@ async def get_plan(user: User, db: AsyncSession) -> str:
                 Subscription.status == "active",
                 Subscription.ends_at > datetime.now()
             )
-        ).order_by(Subscription.started_at.desc())
+        ).order_by(Subscription.started_at.desc()).limit(1)
     )
-    sub = sub_result.scalar_one_or_none()
+    sub = sub_result.scalars().first()
     if not sub:
         return "love_pro"
     payment = sub.payment_type or ""
@@ -34,15 +34,18 @@ async def get_plan(user: User, db: AsyncSession) -> str:
         return "vip"
     return "love_pro"
 
+
 class GenerateRequest(BaseModel):
     telegram_id: str
     analysis_id: int
     mode: str
 
+
 class ChatRequest(BaseModel):
     telegram_id: str
     mode: str
     messages: List[dict]
+
 
 @router.post("/response")
 async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db)):
@@ -75,6 +78,7 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
 
     return {"variants": variants}
 
+
 @router.post("/chat")
 async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     if request.mode not in VALID_CHAT_MODES:
@@ -94,7 +98,6 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     response = await chat_with_bot(request.messages, request.mode)
 
-    # Логуємо для статистики
     conv = Conversation(
         user_id=user.id,
         mode=request.mode,
