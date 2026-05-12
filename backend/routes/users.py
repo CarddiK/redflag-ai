@@ -152,7 +152,7 @@ def _user_response(user: User) -> dict:
         "free_analyses_used": user.free_analyses_used,
         "bonus_analyses": user.bonus_analyses or 0,
         "referral_code": user.referral_code,
-        "referral_link": f"https://t.me/ai_redflag_bot?start={user.referral_code}",
+        "referral_link": f"https://t.me/flagai_bot?start={user.referral_code}",
         "referral_count": referral_count,
         "next_reward": next_reward
     }
