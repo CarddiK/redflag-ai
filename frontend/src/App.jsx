@@ -157,7 +157,7 @@ export default function App() {
       case 'crushes':
         return <CrushesScreen user={user} onBack={() => setScreen('home')} onAnalyzeCrush={handleAnalyzeCrush} />
       case 'outfit':
-        return <OutfitScreen user={user} onBack={() => setScreen('home')} />
+          return <OutfitScreen user={user} onBack={() => { refreshUser(); setScreen('home') }} />
       case 'referral':
         return <ReferralScreen user={user} onBack={() => setScreen('home')} />
       case 'premium':
