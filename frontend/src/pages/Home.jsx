@@ -86,15 +86,21 @@ export default function Home({ user, onNavigate, analysesLeft }) {
             </div>
           </button>
 
-          <button className="menu-card" onClick={() => onNavigate('outfit')}>
-            <span className="card-icon">👗</span>
-            <div className="card-content">
-              <span className="card-title">Стиліст</span>
-              <span className="card-desc">{isPremium ? 'Оцінка образу' : '2 безкоштовно'}</span>
-            </div>
-          </button>
-        </div>
-      </div>
+      <button className="menu-card" onClick={() => onNavigate('outfit')}>
+  {!isPremium && <span className="card-lock">🔒</span>}
+  <span className="card-icon">👗</span>
+  <div className="card-content">
+    <span className="card-title">Стиліст</span>
+    <span className="card-desc">
+      {isPremium
+        ? 'Оцінка образу'
+        : (user.outfit_analyses_used || 0) >= 2
+          ? 'Потрібен VIP 👑'
+          : `${2 - (user.outfit_analyses_used || 0)} безкоштовно`
+      }
+    </span>
+  </div>
+</button>
 
       <div className="referral-banner" onClick={() => onNavigate('referral')}>
         <div className="referral-text">
