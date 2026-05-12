@@ -1449,8 +1449,7 @@ textarea { resize: none; }
 
 .plan-badge {
   position: absolute;
-  top: 24px;
-  bottom: 12px;
+  top: 48px;
   right: 12px;
   background: rgba(191,90,242,0.15);
   border: 1px solid rgba(191,90,242,0.3);
