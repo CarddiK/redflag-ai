@@ -27,6 +27,7 @@ export default function Home({ user, onNavigate, analysesLeft }) {
       : Math.max(0, 3 + (user.bonus_analyses || 0) - user.free_analyses_used)
 
   const isPremium = user.is_premium
+  const outfitLeft = 2 - (user.outfit_analyses_used || 0)
 
   return (
     <div className="home">
@@ -86,21 +87,23 @@ export default function Home({ user, onNavigate, analysesLeft }) {
             </div>
           </button>
 
-      <button className="menu-card" onClick={() => onNavigate('outfit')}>
-  {!isPremium && <span className="card-lock">🔒</span>}
-  <span className="card-icon">👗</span>
-  <div className="card-content">
-    <span className="card-title">Стиліст</span>
-    <span className="card-desc">
-      {isPremium
-        ? 'Оцінка образу'
-        : (user.outfit_analyses_used || 0) >= 2
-          ? 'Потрібен VIP 👑'
-          : `${2 - (user.outfit_analyses_used || 0)} безкоштовно`
-      }
-    </span>
-  </div>
-</button>
+          <button className="menu-card" onClick={() => onNavigate('outfit')}>
+            {!isPremium && outfitLeft <= 0 && <span className="card-lock">🔒</span>}
+            <span className="card-icon">👗</span>
+            <div className="card-content">
+              <span className="card-title">Стиліст</span>
+              <span className="card-desc">
+                {isPremium
+                  ? 'Оцінка образу'
+                  : outfitLeft <= 0
+                    ? 'Потрібен VIP 👑'
+                    : `${outfitLeft} безкоштовно`
+                }
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
 
       <div className="referral-banner" onClick={() => onNavigate('referral')}>
         <div className="referral-text">
@@ -112,12 +115,10 @@ export default function Home({ user, onNavigate, analysesLeft }) {
         </button>
       </div>
 
-      {/* Постійний банер приватності */}
       <div className="privacy-banner" onClick={() => setShowPrivacy(true)}>
         🔒 Ми не зберігаємо твої переписки — дані видаляються одразу після аналізу
       </div>
 
-      {/* Popup приватності */}
       {showPrivacy && (
         <div className="upgrade-overlay" onClick={acceptPrivacy}>
           <div className="privacy-modal" onClick={e => e.stopPropagation()}>
