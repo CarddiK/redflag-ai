@@ -217,7 +217,7 @@ async def get_referral(callback: CallbackQuery):
         result = await db.execute(select(User).where(User.telegram_id == str(callback.from_user.id)))
         user = result.scalar_one_or_none()
         if user:
-            link = f"https://t.me/ai_redflag_bot?start={user.referral_code}"
+            link = f"https://t.me/flagai_bot?start={user.referral_code}"
             await callback.message.answer(f"🔗 Твоє реферальне посилання:\n{link}")
     await callback.answer()
 
