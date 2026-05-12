@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from database import get_db
-from models import User, Subscription
+from models import User, Subscription, OutfitAnalysis
 from pydantic import BaseModel
 from typing import Optional
 import hashlib
@@ -94,7 +94,7 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
             await db.commit()
             await db.refresh(user)
 
-    return _user_response(user)
+    return await _user_response(user, db)
 
 
 @router.post("/create-invoice")
@@ -129,10 +129,10 @@ async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
-    return _user_response(user)
+    return await _user_response(user, db)
 
 
-def _user_response(user: User) -> dict:
+async def _user_response(user: User, db: AsyncSession) -> dict:
     referral_count = user.referral_count or 0
 
     if referral_count < 2:
@@ -144,6 +144,13 @@ def _user_response(user: User) -> dict:
     else:
         next_reward = None
 
+    # Рахуємо скільки спроб стиліста використано
+    outfit_used = await db.scalar(
+        select(func.count()).select_from(OutfitAnalysis).where(
+            OutfitAnalysis.user_id == user.id
+        )
+    ) or 0
+
     return {
         "id": user.id,
         "telegram_id": user.telegram_id,
@@ -154,5 +161,6 @@ def _user_response(user: User) -> dict:
         "referral_code": user.referral_code,
         "referral_link": f"https://t.me/flagai_bot?start={user.referral_code}",
         "referral_count": referral_count,
-        "next_reward": next_reward
+        "next_reward": next_reward,
+        "outfit_analyses_used": outfit_used,
     }
