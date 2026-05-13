@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 export default function Home({ user, onNavigate, analysesLeft }) {
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const seen = localStorage.getItem('privacy_seen')
@@ -18,6 +19,8 @@ export default function Home({ user, onNavigate, analysesLeft }) {
   const handleCopyReferral = (e) => {
     e.stopPropagation()
     navigator.clipboard.writeText(user.referral_link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const leftCount = analysesLeft !== undefined
@@ -110,8 +113,8 @@ export default function Home({ user, onNavigate, analysesLeft }) {
           <strong>👥 Запроси друга — отримай бонуси</strong>
           Натисни щоб дізнатись більше
         </div>
-        <button className="referral-copy" onClick={handleCopyReferral}>
-          Копіювати
+        <button className={`referral-copy ${copied ? 'copied' : ''}`} onClick={handleCopyReferral}>
+          {copied ? '✓ Скопійовано' : 'Копіювати'}
         </button>
       </div>
 
