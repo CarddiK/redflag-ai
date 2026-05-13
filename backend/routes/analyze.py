@@ -80,33 +80,39 @@ async def analyze(
                 detail="UPGRADE_REQUIRED:Ліміт 50 аналізів на місяць вичерпано. Переходь на VIP 👑 для безліміту"
             )
 
-    contact_id = None
-    if crush_name and crush_name.strip():
-        contact_result = await db.execute(
-            select(Contact).where(
-                and_(
-                    Contact.user_id == user.id,
-                    Contact.name == crush_name.strip()
-                )
+contact_id = None
+if crush_name and crush_name.strip():
+    contact_result = await db.execute(
+        select(Contact).where(
+            and_(
+                Contact.user_id == user.id,
+                Contact.name == crush_name.strip()
             )
         )
-        contact = contact_result.scalar_one_or_none()
-        if not contact:
-            # Для фрі юзерів — перевіряємо ліміт крашів
-            if plan == "free":
-                crushes_count = await db.scalar(
-                    select(func.count()).select_from(Contact).where(
-                        Contact.user_id == user.id
-                    )
+    )
+    contact = contact_result.scalar_one_or_none()
+    if not contact:
+        # Перевіряємо ліміт тільки при створенні НОВОГО краша
+        if plan == "free":
+            crushes_count = await db.scalar(
+                select(func.count()).select_from(Contact).where(
+                    Contact.user_id == user.id
                 )
-                if crushes_count >= FREE_CRUSHES_LIMIT:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="UPGRADE_REQUIRED:Безкоштовно можна додати тільки 1 краша. Отримай Love Pro 💜 для картотеки до 5 крашів"
-                    )
+            )
+            if crushes_count >= FREE_CRUSHES_LIMIT:
+                # Не блокуємо аналіз — просто не зберігаємо краша
+                contact_id = None
+            else:
+                contact = Contact(user_id=user.id, name=crush_name.strip())
+                db.add(contact)
+                await db.flush()
+                contact_id = contact.id
+        else:
             contact = Contact(user_id=user.id, name=crush_name.strip())
             db.add(contact)
             await db.flush()
+            contact_id = contact.id
+    else:
         contact_id = contact.id
 
     screenshot_b64_list = []
