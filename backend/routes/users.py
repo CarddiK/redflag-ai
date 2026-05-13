@@ -61,7 +61,8 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
         user = User(
             telegram_id=user_data.telegram_id,
             username=user_data.username,
-            referral_code=generate_referral_code(user_data.telegram_id)
+            referral_code=generate_referral_code(user_data.telegram_id),
+            last_active_at=datetime.now()
         )
         db.add(user)
         await db.flush()
@@ -81,6 +82,9 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
         await db.refresh(user)
 
     else:
+        # Оновлюємо last_active_at при кожному відкритті
+        user.last_active_at = datetime.now()
+
         if user_data.referral_code and not user.referred_by:
             referrer_result = await db.execute(
                 select(User).where(User.referral_code == user_data.referral_code)
@@ -91,8 +95,9 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
                 referrer.referral_count = (referrer.referral_count or 0) + 1
                 await apply_referral_reward(referrer, db)
                 print(f"REFERRAL EXISTING: {user_data.telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
-            await db.commit()
-            await db.refresh(user)
+
+        await db.commit()
+        await db.refresh(user)
 
     return await _user_response(user, db)
 
@@ -129,6 +134,10 @@ async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
+    # Оновлюємо last_active_at
+    user.last_active_at = datetime.now()
+    await db.commit()
+
     return await _user_response(user, db)
 
 
@@ -144,7 +153,6 @@ async def _user_response(user: User, db: AsyncSession) -> dict:
     else:
         next_reward = None
 
-    # Рахуємо скільки спроб стиліста використано
     outfit_used = await db.scalar(
         select(func.count()).select_from(OutfitAnalysis).where(
             OutfitAnalysis.user_id == user.id
