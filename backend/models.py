@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Float, JSON
 from sqlalchemy.sql import func
 from database import Base
 
+free_responses_used = Column(Integer, default=0)
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
