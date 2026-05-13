@@ -27,7 +27,7 @@ export default function Home({ user, onNavigate, analysesLeft }) {
     ? analysesLeft
     : user.is_premium
       ? '∞'
-      : Math.max(0, 3 + (user.bonus_analyses || 0) - user.free_analyses_used)
+      : Math.max(0, 5 + (user.bonus_analyses || 0) - user.free_analyses_used)
 
   const isPremium = user.is_premium
   const outfitLeft = 2 - (user.outfit_analyses_used || 0)
