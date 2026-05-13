@@ -1833,3 +1833,21 @@ textarea { resize: none; }
 }
 
 .onboarding-btn:active { transform: scale(0.97); }
+
+.share-btn {
+  background: linear-gradient(135deg, #229ED9, #1a8ac4);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  color: white;
+  font-family: 'Unbounded', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+  box-shadow: 0 4px 20px rgba(34, 158, 217, 0.3);
+}
+
+.share-btn:active { transform: scale(0.97); }
