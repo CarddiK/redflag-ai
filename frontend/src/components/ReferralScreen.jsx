@@ -35,6 +35,17 @@ export default function ReferralScreen({ user, onBack }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleShare = () => {
+    const text = `Привіт! Я користуюсь RedFlag AI — він аналізує переписки і підказує що думає людина насправді 👀\n\nСпробуй безкоштовно:`
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(user.referral_link)}&text=${encodeURIComponent(text)}`
+    const tg = window.Telegram?.WebApp
+    if (tg) {
+      tg.openTelegramLink(shareUrl)
+    } else {
+      window.open(shareUrl, '_blank')
+    }
+  }
+
   const getRewardStatus = (reward) => {
     if (count >= reward.at) return 'done'
     if (next && next.at === reward.at) return 'next'
@@ -120,6 +131,9 @@ export default function ReferralScreen({ user, onBack }) {
           </div>
           <button className="action-btn" onClick={handleCopy}>
             {copied ? '✅ Скопійовано!' : '📋 Скопіювати посилання'}
+          </button>
+          <button className="share-btn" onClick={handleShare}>
+            ✈️ Запросити друзів
           </button>
         </div>
 
