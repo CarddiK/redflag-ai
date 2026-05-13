@@ -13,6 +13,7 @@ router = APIRouter(prefix="/generate", tags=["generate"])
 VALID_CHAT_MODES = ["friend", "psychologist", "coach", "honest", "stylist"]
 VALID_GENERATE_MODES = ["flirt", "put_in_place", "joke", "soft_reject", "support"]
 PREMIUM_CHAT_MODES = ["psychologist", "coach", "honest", "stylist"]
+FREE_RESPONSES_LIMIT = 1
 
 async def get_plan(user: User, db: AsyncSession) -> str:
     if not user.is_premium:
@@ -58,11 +59,14 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
+
     if plan == "free":
-        raise HTTPException(
-            status_code=403,
-            detail="UPGRADE_REQUIRED:Генератор відповідей доступний в Love Pro 💜 або VIP 👑"
-        )
+        responses_used = user.free_responses_used or 0
+        if responses_used >= FREE_RESPONSES_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail="UPGRADE_REQUIRED:Безкоштовна генерація відповіді використана (1/1). Отримай Love Pro 💜 для безліміту"
+            )
 
     analysis_result = await db.execute(select(Analysis).where(Analysis.id == request.analysis_id))
     analysis = analysis_result.scalar_one_or_none()
@@ -75,6 +79,11 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
         "tone": analysis.tone,
         "interest_level": analysis.interest_level
     }, request.mode)
+
+    # Рахуємо використану генерацію для фрі
+    if plan == "free":
+        user.free_responses_used = (user.free_responses_used or 0) + 1
+        await db.commit()
 
     return {"variants": variants}
 
