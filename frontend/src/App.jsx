@@ -112,7 +112,7 @@ export default function App() {
       const left = 50 - used
       return left > 0 ? left : '∞'
     }
-    const limit = 3 + (user.bonus_analyses || 0)
+    const limit = 5 + (user.bonus_analyses || 0)
     const left = limit - (user.free_analyses_used || 0)
     return Math.max(0, left)
   }
