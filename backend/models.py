@@ -13,7 +13,8 @@ class User(Base):
     referral_code = Column(String, unique=True, nullable=True)
     referred_by = Column(Integer, nullable=True)
     referral_count = Column(Integer, default=0)
-    analyses_reset_at = Column(DateTime, nullable=True)  # коли останній раз скидались
+    analyses_reset_at = Column(DateTime, nullable=True)
+    last_active_at = Column(DateTime, nullable=True)  # коли останній раз заходив
     created_at = Column(DateTime, server_default=func.now())
 
 class Contact(Base):
