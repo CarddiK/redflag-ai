@@ -2,7 +2,6 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Float, JSON
 from sqlalchemy.sql import func
 from database import Base
 
-free_responses_used = Column(Integer, default=0)
 
 class User(Base):
     __tablename__ = "users"
@@ -12,6 +11,7 @@ class User(Base):
     is_premium = Column(Boolean, default=False)
     free_analyses_used = Column(Integer, default=0)
     bonus_analyses = Column(Integer, default=0)
+    free_responses_used = Column(Integer, default=0)
     referral_code = Column(String, unique=True, nullable=True)
     referred_by = Column(Integer, nullable=True)
     referral_count = Column(Integer, default=0)
