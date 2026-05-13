@@ -12,6 +12,7 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 FREE_ANALYSES_LIMIT = 5
 LOVE_PRO_ANALYSES_LIMIT = 50
+FREE_CRUSHES_LIMIT = 1
 
 async def get_plan(user: User, db: AsyncSession) -> str:
     if not user.is_premium:
@@ -41,6 +42,7 @@ async def check_and_reset_analyses(user: User, plan: str, db: AsyncSession):
         period = timedelta(weeks=1) if plan == "free" else timedelta(days=30)
         if (now - reset_at) >= period:
             user.free_analyses_used = 0
+            user.free_responses_used = 0  # скидаємо і генерації теж
             user.analyses_reset_at = now
             await db.flush()
             print(f"RESET analyses for {user.telegram_id} plan={plan}")
@@ -69,7 +71,7 @@ async def analyze(
         if user.free_analyses_used >= limit:
             raise HTTPException(
                 status_code=403,
-                detail="UPGRADE_REQUIRED:Ліміт 3 безкоштовних аналізів вичерпано. Оформи Love Pro 💜 для 50 аналізів на місяць"
+                detail="UPGRADE_REQUIRED:Ліміт 5 безкоштовних аналізів вичерпано. Оформи Love Pro 💜 для 50 аналізів на місяць"
             )
     elif plan == "love_pro":
         if user.free_analyses_used >= LOVE_PRO_ANALYSES_LIMIT:
@@ -90,6 +92,18 @@ async def analyze(
         )
         contact = contact_result.scalar_one_or_none()
         if not contact:
+            # Для фрі юзерів — перевіряємо ліміт крашів
+            if plan == "free":
+                crushes_count = await db.scalar(
+                    select(func.count()).select_from(Contact).where(
+                        Contact.user_id == user.id
+                    )
+                )
+                if crushes_count >= FREE_CRUSHES_LIMIT:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="UPGRADE_REQUIRED:Безкоштовно можна додати тільки 1 краша. Отримай Love Pro 💜 для картотеки до 5 крашів"
+                    )
             contact = Contact(user_id=user.id, name=crush_name.strip())
             db.add(contact)
             await db.flush()
@@ -176,16 +190,15 @@ async def get_crushes(telegram_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     plan = await get_plan(user, db)
-    if plan == "free":
-        raise HTTPException(
-            status_code=403,
-            detail="UPGRADE_REQUIRED:Картотека крашів доступна в Love Pro 💜 або VIP 👑"
-        )
 
     contacts_result = await db.execute(
         select(Contact).where(Contact.user_id == user.id)
     )
     contacts = contacts_result.scalars().all()
+
+    # Для фрі — показуємо тільки 1 краша
+    if plan == "free":
+        contacts = contacts[:FREE_CRUSHES_LIMIT]
 
     crushes = []
     for contact in contacts:
