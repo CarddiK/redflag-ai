@@ -29,9 +29,9 @@ async def check_expired_subscriptions():
                                 Subscription.status == "active",
                                 Subscription.ends_at > datetime.now()
                             )
-                        )
+                        ).limit(1)
                     )
-                    active_sub = sub_result.scalar_one_or_none()
+                    active_sub = sub_result.scalars().first()
                     if not active_sub:
                         user.is_premium = False
                         print(f"EXPIRED: {user.telegram_id} -> is_premium=False")
@@ -48,7 +48,6 @@ async def notify_analyses_reset():
     while True:
         try:
             now = datetime.now()
-            # Чекаємо до понеділка 10:00
             days_until_monday = (7 - now.weekday()) % 7
             if days_until_monday == 0 and now.hour >= 10:
                 days_until_monday = 7
@@ -59,28 +58,32 @@ async def notify_analyses_reset():
             from bot import bot
             async with AsyncSessionLocal() as db:
                 from models import User
-                # Тільки фрі юзери які робили аналізи
+                # Тільки фрі юзери які були активні останні 14 днів і робили аналізи
+                two_weeks_ago = datetime.now() - timedelta(days=14)
                 result = await db.execute(
                     select(User).where(
                         and_(
                             User.is_premium == False,
-                            User.free_analyses_used > 0
+                            User.free_analyses_used > 0,
+                            User.last_active_at >= two_weeks_ago
                         )
                     )
                 )
-                users = result.scalars().all()
+                active_users = result.scalars().all()
 
-                for user in users:
+                for user in active_users:
                     try:
+                        bonus = user.bonus_analyses or 0
+                        total = 5 + bonus
                         await bot.send_message(
                             chat_id=int(user.telegram_id),
                             text=(
-                                "🔄 Твої безкоштовні аналізи поновились!\n\n"
-                                "У тебе знову є 5 аналізів на цьому тижні.\n"
-                                "Є кому написав — саме час перевірити 👀"
+                                f"🔄 Твої безкоштовні аналізи поновились!\n\n"
+                                f"У тебе знову є {total} аналізів на цьому тижні.\n"
+                                f"Є кому написав — саме час перевірити 👀"
                             )
                         )
-                        await asyncio.sleep(0.05)  # щоб не спамити Telegram API
+                        await asyncio.sleep(0.05)
                     except Exception as e:
                         print(f"notify_reset error for {user.telegram_id}: {e}")
 
@@ -90,52 +93,40 @@ async def notify_analyses_reset():
 
 
 async def notify_inactive_users():
-    """Щодня перевіряє юзерів які не заходили 3 дні"""
+    """Щодня перевіряє юзерів які не заходили рівно 3 дні"""
     while True:
         try:
-            await asyncio.sleep(60 * 60 * 24)  # раз на добу
+            await asyncio.sleep(60 * 60 * 24)
 
             from bot import bot
             async with AsyncSessionLocal() as db:
-                from models import User, Analysis
-                three_days_ago = datetime.now() - timedelta(days=3)
-                seven_days_ago = datetime.now() - timedelta(days=7)
+                from models import User
 
-                # Юзери у яких останній аналіз був 3 дні тому
-                result = await db.execute(select(User))
-                all_users = result.scalars().all()
+                # Юзери у яких last_active_at був 3 дні тому (±12 годин)
+                three_days_ago_min = datetime.now() - timedelta(days=3, hours=12)
+                three_days_ago_max = datetime.now() - timedelta(days=2, hours=12)
 
-                for user in all_users:
-                    try:
-                        # Знаходимо останній аналіз
-                        last_analysis = await db.execute(
-                            select(Analysis)
-                            .where(Analysis.user_id == user.id)
-                            .order_by(Analysis.created_at.desc())
-                            .limit(1)
+                result = await db.execute(
+                    select(User).where(
+                        and_(
+                            User.last_active_at >= three_days_ago_min,
+                            User.last_active_at < three_days_ago_max
                         )
-                        last = last_analysis.scalars().first()
+                    )
+                )
+                inactive_users = result.scalars().all()
 
-                        if not last:
-                            continue
-
-                        last_date = last.created_at
-                        if not last_date:
-                            continue
-
-                        # Якщо останній аналіз був рівно 3 дні тому (±12 годин)
-                        diff = datetime.now() - last_date
-                        if timedelta(days=2, hours=12) <= diff <= timedelta(days=3, hours=12):
-                            await bot.send_message(
-                                chat_id=int(user.telegram_id),
-                                text=(
-                                    "👀 Давно не бачились!\n\n"
-                                    "Поки тебе не було — може хтось написав?\n"
-                                    "Кинь скріншот і подивимось що до чого 🔍"
-                                )
+                for user in inactive_users:
+                    try:
+                        await bot.send_message(
+                            chat_id=int(user.telegram_id),
+                            text=(
+                                "👀 Давно не бачились!\n\n"
+                                "Поки тебе не було — може хтось написав?\n"
+                                "Кинь скріншот і подивимось що до чого 🔍"
                             )
-                            await asyncio.sleep(0.05)
-
+                        )
+                        await asyncio.sleep(0.05)
                     except Exception as e:
                         print(f"notify_inactive error for {user.telegram_id}: {e}")
 
@@ -148,7 +139,7 @@ async def notify_subscription_expiring():
     """Щодня перевіряє підписки які закінчуються через 3 дні"""
     while True:
         try:
-            await asyncio.sleep(60 * 60 * 24)  # раз на добу
+            await asyncio.sleep(60 * 60 * 24)
 
             from bot import bot
             async with AsyncSessionLocal() as db:
