@@ -61,7 +61,7 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
     plan = await get_plan(user, db)
 
     if plan == "free":
-        responses_used = user.free_responses_used or 0
+        responses_used = int(user.free_responses_used or 0)
         if responses_used >= FREE_RESPONSES_LIMIT:
             raise HTTPException(
                 status_code=403,
@@ -82,7 +82,7 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
 
     # Рахуємо використану генерацію для фрі
     if plan == "free":
-        user.free_responses_used = (user.free_responses_used or 0) + 1
+        user.free_responses_used = (int(user.free_responses_used or 0)) + 1
         await db.commit()
 
     return {"variants": variants}
