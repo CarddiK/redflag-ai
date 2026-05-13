@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
-FREE_ANALYSES_LIMIT = 3
+FREE_ANALYSES_LIMIT = 5
 LOVE_PRO_ANALYSES_LIMIT = 50
 
 async def get_plan(user: User, db: AsyncSession) -> str:
