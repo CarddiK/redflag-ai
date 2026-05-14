@@ -191,18 +191,23 @@ async def update_streak(user: User, db: AsyncSession):
     now = datetime.now().date()
     last = user.streak_last_date
 
-    if last:
-        last_date = last.date() if hasattr(last, 'date') else datetime.fromisoformat(str(last)).date()
-        diff = (now - last_date).days
+    # Обробляємо випадок коли в базі рядок 'NULL' замість None
+    if last and str(last).upper() == 'NULL':
+        last = None
 
-        if diff == 0:
-            # Вже заходив сьогодні
-            return
-        elif diff == 1:
-            # Зайшов наступного дня — streak продовжується
-            user.streak_days = int(user.streak_days or 0) + 1
-        else:
-            # Пропустив день — streak скидається
+    if last:
+        try:
+            last_date = last.date() if hasattr(last, 'date') else datetime.fromisoformat(str(last)).date()
+            diff = (now - last_date).days
+
+            if diff == 0:
+                return
+            elif diff == 1:
+                user.streak_days = int(user.streak_days or 0) + 1
+            else:
+                user.streak_days = 1
+        except Exception as e:
+            print(f"streak parse error: {e}")
             user.streak_days = 1
     else:
         user.streak_days = 1
