@@ -1851,3 +1851,34 @@ textarea { resize: none; }
 }
 
 .share-btn:active { transform: scale(0.97); }
+
+/* ─── OFFER MODAL ─── */
+.offer-price-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: rgba(191,90,242,0.1);
+  border: 1px solid rgba(191,90,242,0.3);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+
+.offer-price-old {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.offer-price-new {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  color: #BF5AF2;
+}
+
+.offer-price-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}

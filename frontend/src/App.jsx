@@ -19,6 +19,7 @@ export default function App() {
   const [prefilledCrush, setPrefilledCrush] = useState(null)
   const [upgradeMessage, setUpgradeMessage] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showOffer, setShowOffer] = useState(false)
 
   useEffect(() => {
     initUser()
@@ -37,6 +38,17 @@ export default function App() {
     window.addEventListener('upgrade-required', handler)
     return () => window.removeEventListener('upgrade-required', handler)
   }, [])
+
+  // Показуємо оффер після 3 аналізів якщо не premium і ще не бачив
+  useEffect(() => {
+    if (!user) return
+    if (user.is_premium) return
+    const offerSeen = localStorage.getItem(`offer_seen_${user.telegram_id}`)
+    if (offerSeen) return
+    if ((user.free_analyses_used || 0) >= 3) {
+      setShowOffer(true)
+    }
+  }, [user])
 
   const initUser = async () => {
     try {
@@ -65,7 +77,6 @@ export default function App() {
       if (telegramId) {
         const userData = await createUser(telegramId, username, ref)
         setUser(userData)
-        // Показуємо онбординг тільки новим юзерам
         const seen = localStorage.getItem(`onboarding_${telegramId}`)
         if (!seen) setShowOnboarding(true)
       } else {
@@ -88,6 +99,17 @@ export default function App() {
   const handleOnboardingDone = () => {
     if (user) localStorage.setItem(`onboarding_${user.telegram_id}`, '1')
     setShowOnboarding(false)
+  }
+
+  const dismissOffer = () => {
+    if (user) localStorage.setItem(`offer_seen_${user.telegram_id}`, '1')
+    setShowOffer(false)
+  }
+
+  const acceptOffer = () => {
+    if (user) localStorage.setItem(`offer_seen_${user.telegram_id}`, '1')
+    setShowOffer(false)
+    setScreen('premium')
   }
 
   const refreshUser = async () => {
@@ -157,7 +179,7 @@ export default function App() {
       case 'crushes':
         return <CrushesScreen user={user} onBack={() => setScreen('home')} onAnalyzeCrush={handleAnalyzeCrush} />
       case 'outfit':
-          return <OutfitScreen user={user} onBack={() => { refreshUser(); setScreen('home') }} />
+        return <OutfitScreen user={user} onBack={() => { refreshUser(); setScreen('home') }} />
       case 'referral':
         return <ReferralScreen user={user} onBack={() => setScreen('home')} />
       case 'premium':
@@ -171,6 +193,7 @@ export default function App() {
     <div className="app">
       {renderScreen()}
 
+      {/* Upgrade modal */}
       {upgradeMessage && (
         <div className="upgrade-overlay" onClick={() => setUpgradeMessage(null)}>
           <div className="upgrade-modal" onClick={e => e.stopPropagation()}>
@@ -185,6 +208,30 @@ export default function App() {
             </button>
             <button className="upgrade-close" onClick={() => setUpgradeMessage(null)}>
               Закрити
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Оффер першого місяця */}
+      {showOffer && !upgradeMessage && (
+        <div className="upgrade-overlay" onClick={dismissOffer}>
+          <div className="upgrade-modal" onClick={e => e.stopPropagation()}>
+            <div className="upgrade-icon">🔥</div>
+            <h3 className="upgrade-title">Спеціальна пропозиція</h3>
+            <p className="upgrade-text">
+              Ти вже зробив 3 аналізи — час розблокувати повний доступ!
+            </p>
+            <div className="offer-price-block">
+              <span className="offer-price-old">199 грн</span>
+              <span className="offer-price-new">99 грн</span>
+              <span className="offer-price-label">перший місяць</span>
+            </div>
+            <button className="action-btn" onClick={acceptOffer}>
+              Отримати Love Pro 💜
+            </button>
+            <button className="upgrade-close" onClick={dismissOffer}>
+              Не зараз
             </button>
           </div>
         </div>
