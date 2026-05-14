@@ -141,8 +141,6 @@ async def start(message: Message):
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": webapp_url})
-    builder.button(text="💎 Love Pro — 100 ⭐️", callback_data="buy_love_pro")
-    builder.button(text="👑 VIP — 250 ⭐️", callback_data="buy_vip")
     builder.adjust(1)
 
     await message.answer(
