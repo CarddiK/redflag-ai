@@ -10,7 +10,7 @@ const PLANS = [
     price_stars: null,
     color: '#636366',
     features: [
-      '3 аналізи на тиждень',
+      '5 аналізів на тиждень',
       'Режим "Друг"',
       'Базова аналітика',
     ],
@@ -22,6 +22,7 @@ const PLANS = [
     name: 'Love Pro',
     emoji: '💜',
     price_uah: 199,
+    price_uah_offer: 99,
     price_stars: 100,
     color: '#BF5AF2',
     popular: true,
@@ -58,6 +59,11 @@ export default function PremiumScreen({ user, onBack }) {
   const [loading, setLoading] = useState(false)
   const [showCardModal, setShowCardModal] = useState(false)
 
+  // Чи є оффер першого місяця
+  const hasOffer = !user.is_premium &&
+    (user.free_analyses_used || 0) >= 3 &&
+    !localStorage.getItem(`offer_used_${user.telegram_id}`)
+
   const handlePay = async (plan) => {
     if (plan.disabled) return
 
@@ -65,6 +71,9 @@ export default function PremiumScreen({ user, onBack }) {
       try {
         setLoading(true)
         await createInvoice(user.telegram_id, plan.id)
+        if (plan.id === 'love_pro' && hasOffer) {
+          localStorage.setItem(`offer_used_${user.telegram_id}`, '1')
+        }
         window.Telegram?.WebApp?.close()
       } catch (e) {
         alert('Помилка при створенні інвойсу. Спробуй ще раз.')
@@ -87,6 +96,13 @@ export default function PremiumScreen({ user, onBack }) {
     setShowCardModal(false)
   }
 
+  const getCardPrice = (plan) => {
+    if (plan.id === 'love_pro' && hasOffer) {
+      return plan.price_uah_offer
+    }
+    return Math.round(plan.price_uah * 0.9)
+  }
+
   return (
     <div className="screen">
       <div className="screen-header">
@@ -106,6 +122,12 @@ export default function PremiumScreen({ user, onBack }) {
           </p>
         </div>
 
+        {hasOffer && (
+          <div className="offer-banner">
+            🔥 Спецпропозиція: перший місяць Love Pro за <strong>99 грн</strong>
+          </div>
+        )}
+
         <div className="payment-toggle">
           <button
             className={`payment-tab ${paymentMethod === 'stars' ? 'active' : ''}`}
@@ -123,7 +145,7 @@ export default function PremiumScreen({ user, onBack }) {
 
         {paymentMethod === 'card' && (
           <div className="card-discount-banner">
-            🎉 Знижка 10% при оплаті карткою!
+            🎉 {hasOffer ? 'Перший місяць за 99 грн!' : 'Знижка 10% при оплаті карткою!'}
           </div>
         )}
 
@@ -152,9 +174,16 @@ export default function PremiumScreen({ user, onBack }) {
                       {plan.price_stars} <span className="plan-currency">⭐️</span>
                     </span>
                   ) : (
-                    <span className="plan-amount">
-                      {Math.round(plan.price_uah * 0.9)} <span className="plan-currency">грн</span>
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      {plan.id === 'love_pro' && hasOffer && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                          {plan.price_uah} грн
+                        </span>
+                      )}
+                      <span className="plan-amount">
+                        {getCardPrice(plan)} <span className="plan-currency">грн</span>
+                      </span>
+                    </div>
                   )}
                   {!plan.disabled && <span className="plan-period">/міс</span>}
                 </div>
