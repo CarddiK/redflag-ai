@@ -118,8 +118,17 @@ async def give_bonus(user: User, bonus: dict, db: AsyncSession):
 
 
 async def check_and_award(user: User, db: AsyncSession, bot=None) -> list:
-    """Перевіряє і видає нові досягнення. Повертає список нових досягнень."""
-    current = user.achievements or []
+    # Парсимо achievements якщо це рядок
+    current = user.achievements
+    if isinstance(current, str):
+        try:
+            import json
+            current = json.loads(current)
+        except:
+            current = []
+    if not isinstance(current, list):
+        current = []
+
     new_achievements = []
 
     total = int(user.total_analyses or 0)
