@@ -12,12 +12,20 @@ class User(Base):
     free_analyses_used = Column(Integer, default=0)
     bonus_analyses = Column(Integer, default=0)
     free_responses_used = Column(Integer, default=0)
+    bonus_outfit_analyses = Column(Integer, default=0)  # бонусні спроби стиліста
     referral_code = Column(String, unique=True, nullable=True)
     referred_by = Column(Integer, nullable=True)
     referral_count = Column(Integer, default=0)
     analyses_reset_at = Column(DateTime, nullable=True)
-    last_active_at = Column(DateTime, nullable=True)  # коли останній раз заходив
+    last_active_at = Column(DateTime, nullable=True)
+    streak_days = Column(Integer, default=0)       # поточний streak
+    streak_last_date = Column(DateTime, nullable=True)  # дата останнього дня streak
+    achievements = Column(JSON, default=list)       # список отриманих досягнень
+    total_analyses = Column(Integer, default=0)     # всього аналізів за весь час
+    total_red_flags = Column(Integer, default=0)    # всього редфлагів знайдено
+    total_messages = Column(Integer, default=0)     # всього повідомлень в чаті
     created_at = Column(DateTime, server_default=func.now())
+
 
 class Contact(Base):
     __tablename__ = "contacts"
@@ -25,6 +33,7 @@ class Contact(Base):
     user_id = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+
 
 class Analysis(Base):
     __tablename__ = "analyses"
@@ -40,6 +49,7 @@ class Analysis(Base):
     user_style = Column(JSON, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
+
 class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True)
@@ -48,11 +58,13 @@ class Conversation(Base):
     messages = Column(JSON, default=list)
     created_at = Column(DateTime, server_default=func.now())
 
+
 class OutfitAnalysis(Base):
     __tablename__ = "outfit_analyses"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+
 
 class Subscription(Base):
     __tablename__ = "subscriptions"

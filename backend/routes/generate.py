@@ -4,6 +4,7 @@ from sqlalchemy import select, and_
 from database import get_db
 from models import User, Analysis, Subscription, Conversation
 from services.openai_service import generate_response, chat_with_bot
+from services.achievements import check_and_award, update_streak
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
@@ -80,9 +81,8 @@ async def generate(request: GenerateRequest, db: AsyncSession = Depends(get_db))
         "interest_level": analysis.interest_level
     }, request.mode)
 
-    # Рахуємо використану генерацію для фрі
     if plan == "free":
-        user.free_responses_used = (int(user.free_responses_used or 0)) + 1
+        user.free_responses_used = int(user.free_responses_used or 0) + 1
         await db.commit()
 
     return {"variants": variants}
@@ -107,12 +107,29 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     response = await chat_with_bot(request.messages, request.mode)
 
+    # Зберігаємо повідомлення
     conv = Conversation(
         user_id=user.id,
         mode=request.mode,
         messages=request.messages
     )
     db.add(conv)
+
+    # Оновлюємо лічильник повідомлень
+    user.total_messages = int(user.total_messages or 0) + 1
+
+    # Оновлюємо streak
+    await update_streak(user, db)
+
+    await db.flush()
+
+    # Перевіряємо досягнення
+    try:
+        from bot import bot
+        await check_and_award(user, db, bot)
+    except Exception as e:
+        print(f"achievements error: {e}")
+
     await db.commit()
 
     return {"response": response}

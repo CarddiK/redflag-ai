@@ -4,6 +4,7 @@ from sqlalchemy import select, and_, func
 from database import get_db
 from models import User, Analysis, Contact, Subscription, OutfitAnalysis
 from services.openai_service import analyze_screenshots, analyze_outfit, compare_crushes
+from services.achievements import check_and_award, update_streak
 from typing import List
 import base64
 from datetime import datetime, timedelta
@@ -99,7 +100,6 @@ async def analyze(
                     )
                 )
                 if crushes_count >= FREE_CRUSHES_LIMIT:
-                    # Не блокуємо аналіз — просто не зберігаємо краша
                     contact_id = None
                 else:
                     contact = Contact(user_id=user.id, name=crush_name.strip())
@@ -124,6 +124,10 @@ async def analyze(
     if "error" in analysis_result:
         raise HTTPException(status_code=500, detail=analysis_result["error"])
 
+    # Рахуємо редфлаги
+    red_flags = analysis_result.get("red_flags", [])
+    red_flags_count = len(red_flags) if red_flags else 0
+
     analysis = Analysis(
         user_id=user.id,
         contact_id=contact_id,
@@ -131,7 +135,7 @@ async def analyze(
         context=context,
         interest_level=analysis_result.get("interest_level"),
         tone=analysis_result.get("tone"),
-        red_flags=analysis_result.get("red_flags", []),
+        red_flags=red_flags,
         summary=analysis_result.get("summary"),
         user_style=analysis_result.get("user_style")
     )
@@ -139,6 +143,40 @@ async def analyze(
 
     if plan != "vip":
         user.free_analyses_used += 1
+
+    # Оновлюємо загальні лічильники
+    user.total_analyses = int(user.total_analyses or 0) + 1
+    user.total_red_flags = int(user.total_red_flags or 0) + red_flags_count
+
+    # Оновлюємо streak
+    await update_streak(user, db)
+
+    await db.flush()
+
+    # Перевіряємо досягнення
+    try:
+        from bot import bot
+        await check_and_award(user, db, bot)
+    except Exception as e:
+        print(f"achievements error: {e}")
+
+    # Пуш коли залишився 1 аналіз
+    if plan == "free":
+        limit = FREE_ANALYSES_LIMIT + (user.bonus_analyses or 0)
+        left = limit - user.free_analyses_used
+        if left == 1:
+            try:
+                from bot import bot
+                await bot.send_message(
+                    chat_id=int(user.telegram_id),
+                    text=(
+                        "⚠️ Залишився 1 безкоштовний аналіз на цьому тижні!\n\n"
+                        "Використай його з розумом 👀\n\n"
+                        "Або переходь на Love Pro 💜 — 50 аналізів на місяць всього за 149 грн"
+                    )
+                )
+            except Exception as e:
+                print(f"notify_last_analysis error: {e}")
 
     await db.commit()
     await db.refresh(analysis)
@@ -311,10 +349,11 @@ async def analyze_outfit_route(
                 OutfitAnalysis.user_id == user.id
             )
         )
-        if outfit_count >= 2:
+        bonus_outfit = int(user.bonus_outfit_analyses or 0)
+        if outfit_count >= (2 + bonus_outfit):
             raise HTTPException(
                 status_code=403,
-                detail="UPGRADE_REQUIRED:Безкоштовні спроби стиліста вичерпано (2/2). Отримай VIP 👑 для безліміту"
+                detail="UPGRADE_REQUIRED:Безкоштовні спроби стиліста вичерпано. Отримай VIP 👑 для безліміту"
             )
 
     contents = await file.read()

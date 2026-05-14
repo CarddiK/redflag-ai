@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from database import get_db
 from models import User, Subscription, OutfitAnalysis
+from services.achievements import update_streak, check_and_award
 from pydantic import BaseModel
 from typing import Optional
 import hashlib
@@ -82,7 +83,6 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
         await db.refresh(user)
 
     else:
-        # Оновлюємо last_active_at при кожному відкритті
         user.last_active_at = datetime.now()
 
         if user_data.referral_code and not user.referred_by:
@@ -95,6 +95,17 @@ async def create_or_get_user(user_data: UserCreate, db: AsyncSession = Depends(g
                 referrer.referral_count = (referrer.referral_count or 0) + 1
                 await apply_referral_reward(referrer, db)
                 print(f"REFERRAL EXISTING: {user_data.telegram_id} -> {referrer.telegram_id}, count={referrer.referral_count}")
+
+        # Оновлюємо streak при кожному відкритті
+        await update_streak(user, db)
+        await db.flush()
+
+        # Перевіряємо досягнення
+        try:
+            from bot import bot
+            await check_and_award(user, db, bot)
+        except Exception as e:
+            print(f"achievements error: {e}")
 
         await db.commit()
         await db.refresh(user)
@@ -134,8 +145,19 @@ async def get_user(telegram_id: str, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
-    # Оновлюємо last_active_at
     user.last_active_at = datetime.now()
+
+    # Оновлюємо streak
+    await update_streak(user, db)
+    await db.flush()
+
+    # Перевіряємо досягнення
+    try:
+        from bot import bot
+        await check_and_award(user, db, bot)
+    except Exception as e:
+        print(f"achievements error: {e}")
+
     await db.commit()
 
     return await _user_response(user, db)
@@ -166,9 +188,16 @@ async def _user_response(user: User, db: AsyncSession) -> dict:
         "is_premium": user.is_premium,
         "free_analyses_used": user.free_analyses_used,
         "bonus_analyses": user.bonus_analyses or 0,
+        "bonus_outfit_analyses": int(user.bonus_outfit_analyses or 0),
+        "free_responses_used": int(user.free_responses_used or 0),
         "referral_code": user.referral_code,
         "referral_link": f"https://t.me/flagai_bot?start={user.referral_code}",
         "referral_count": referral_count,
         "next_reward": next_reward,
         "outfit_analyses_used": outfit_used,
+        "streak_days": int(user.streak_days or 0),
+        "achievements": user.achievements or [],
+        "total_analyses": int(user.total_analyses or 0),
+        "total_red_flags": int(user.total_red_flags or 0),
+        "total_messages": int(user.total_messages or 0),
     }

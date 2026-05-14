@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import init_db, AsyncSessionLocal
 from routes import users, analyze, generate, stats
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from datetime import datetime, timedelta
 import asyncio
 import os
@@ -58,7 +58,6 @@ async def notify_analyses_reset():
             from bot import bot
             async with AsyncSessionLocal() as db:
                 from models import User
-                # Тільки фрі юзери які були активні останні 14 днів і робили аналізи
                 two_weeks_ago = datetime.now() - timedelta(days=14)
                 result = await db.execute(
                     select(User).where(
@@ -102,7 +101,6 @@ async def notify_inactive_users():
             async with AsyncSessionLocal() as db:
                 from models import User
 
-                # Юзери у яких last_active_at був 3 дні тому (±12 годин)
                 three_days_ago_min = datetime.now() - timedelta(days=3, hours=12)
                 three_days_ago_max = datetime.now() - timedelta(days=2, hours=12)
 
@@ -188,6 +186,94 @@ async def notify_subscription_expiring():
             await asyncio.sleep(60 * 60)
 
 
+async def send_weekly_report():
+    """Щопонеділка о 11:00 відправляє тижневий звіт юзерам"""
+    while True:
+        try:
+            now = datetime.now()
+            days_until_monday = (7 - now.weekday()) % 7
+            if days_until_monday == 0 and now.hour >= 11:
+                days_until_monday = 7
+            next_monday = now.replace(hour=11, minute=0, second=0, microsecond=0) + timedelta(days=days_until_monday)
+            wait_seconds = (next_monday - now).total_seconds()
+            await asyncio.sleep(wait_seconds)
+
+            from bot import bot
+            async with AsyncSessionLocal() as db:
+                from models import User, Analysis
+
+                week_ago = datetime.now() - timedelta(days=7)
+                two_weeks_ago = datetime.now() - timedelta(days=14)
+
+                # Юзери які були активні останні 14 днів
+                result = await db.execute(
+                    select(User).where(
+                        User.last_active_at >= two_weeks_ago
+                    )
+                )
+                active_users = result.scalars().all()
+
+                for user in active_users:
+                    try:
+                        # Аналізи за останній тиждень
+                        analyses_result = await db.execute(
+                            select(Analysis).where(
+                                and_(
+                                    Analysis.user_id == user.id,
+                                    Analysis.created_at >= week_ago
+                                )
+                            )
+                        )
+                        analyses = analyses_result.scalars().all()
+
+                        if not analyses:
+                            continue
+
+                        count = len(analyses)
+                        avg_interest = round(
+                            sum(a.interest_level for a in analyses if a.interest_level) /
+                            max(1, len([a for a in analyses if a.interest_level])), 1
+                        )
+
+                        # Рахуємо редфлаги
+                        red_flags_count = sum(
+                            len(a.red_flags) if a.red_flags else 0
+                            for a in analyses
+                        )
+
+                        # Формуємо текст звіту
+                        interest_emoji = "🔥" if avg_interest >= 70 else "💛" if avg_interest >= 40 else "❄️"
+                        interest_text = "висока" if avg_interest >= 70 else "середня" if avg_interest >= 40 else "низька"
+
+                        text = (
+                            f"📊 Твій тижневий звіт\n\n"
+                            f"За цей тиждень:\n"
+                            f"🔍 Аналізів: {count}\n"
+                            f"{interest_emoji} Середній інтерес: {avg_interest}% ({interest_text})\n"
+                            f"🚩 Редфлагів знайдено: {red_flags_count}\n\n"
+                        )
+
+                        if avg_interest >= 70:
+                            text += "Схоже все йде добре — людина явно зацікавлена 😏"
+                        elif avg_interest >= 40:
+                            text += "Є потенціал, але ще є над чим попрацювати 🤔"
+                        else:
+                            text += "Хм, інтерес невисокий... Може варто переключитись? 👀"
+
+                        await bot.send_message(
+                            chat_id=int(user.telegram_id),
+                            text=text
+                        )
+                        await asyncio.sleep(0.05)
+
+                    except Exception as e:
+                        print(f"weekly_report error for {user.telegram_id}: {e}")
+
+        except Exception as e:
+            print(f"send_weekly_report error: {e}")
+            await asyncio.sleep(60 * 60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -201,6 +287,7 @@ async def lifespan(app: FastAPI):
     task2 = asyncio.create_task(notify_analyses_reset())
     task3 = asyncio.create_task(notify_inactive_users())
     task4 = asyncio.create_task(notify_subscription_expiring())
+    task5 = asyncio.create_task(send_weekly_report())
     print("✅ Всі планувальники запущено")
 
     yield
@@ -209,6 +296,7 @@ async def lifespan(app: FastAPI):
     task2.cancel()
     task3.cancel()
     task4.cancel()
+    task5.cancel()
 
 
 app = FastAPI(title="RedFlag AI Backend", version="0.1.0", lifespan=lifespan)
