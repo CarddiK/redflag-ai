@@ -31,6 +31,8 @@ export default function Home({ user, onNavigate, analysesLeft }) {
 
   const isPremium = user.is_premium
   const outfitLeft = 2 - (user.outfit_analyses_used || 0)
+  const streak = user.streak_days || 0
+  const achievements = user.achievements || []
 
   return (
     <div className="home">
@@ -44,6 +46,15 @@ export default function Home({ user, onNavigate, analysesLeft }) {
           <span>що аналізуємо?</span>
         </h1>
         <p className="home-subtitle">Твій AI-радник у стосунках</p>
+        {streak > 1 && (
+  <div className="streak-banner" onClick={() => onNavigate('achievements')}>
+    <span className="streak-fire">🔥</span>
+    <span className="streak-text">
+      <strong>{streak} днів поспіль!</strong> Так тримати
+    </span>
+    <span className="streak-arrow">→</span>
+  </div>
+)}
       </div>
 
       <div className="stats-bar">
@@ -55,9 +66,9 @@ export default function Home({ user, onNavigate, analysesLeft }) {
           <span className="stat-value">{user.referral_count || 0}</span>
           <span className="stat-label">Рефералів</span>
         </div>
-        <div className="stat-chip" onClick={() => onNavigate('premium')}>
-          <span className="stat-value">{isPremium ? '💎' : '🔓'}</span>
-          <span className="stat-label">{isPremium ? 'Premium' : 'Апгрейд'}</span>
+        <div className="stat-chip" onClick={() => onNavigate('achievements')}>
+          <span className="stat-value">{streak > 0 ? `${streak}🔥` : `${achievements.length}🏆`}</span>
+          <span className="stat-label">{streak > 0 ? 'Streak' : 'Досяг.'}</span>
         </div>
       </div>
 
@@ -106,6 +117,15 @@ export default function Home({ user, onNavigate, analysesLeft }) {
             </div>
           </button>
         </div>
+
+        {/* Кнопка досягнень */}
+        <button className="achievements-btn" onClick={() => onNavigate('achievements')}>
+          <span>🏆 Досягнення</span>
+          <span className="achievements-btn-right">
+            {achievements.length}/14
+            <span className="achievements-btn-arrow">→</span>
+          </span>
+        </button>
       </div>
 
       <div className="referral-banner" onClick={() => onNavigate('referral')}>

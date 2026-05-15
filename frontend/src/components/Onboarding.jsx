@@ -12,7 +12,7 @@ const SLIDES = [
     title: 'Аналіз переписки',
     desc: 'Завантаж скріншоти — і дізнайся чи він/вона реально зацікавлені, або просто не хочуть бути грубими.',
     color: '#BF5AF2',
-    hint: '3 аналізи безкоштовно щотижня'
+    hint: '5 аналізів безкоштовно щотижня'
   },
   {
     emoji: '💬',
@@ -20,6 +20,20 @@ const SLIDES = [
     desc: 'Генератор відповідей підкаже як флiртувати, поставити на місце, м\'яко відмовити або просто пожартувати.',
     color: '#FF9500',
     hint: 'Love Pro+'
+  },
+  {
+    emoji: '🔥',
+    title: 'Заходь щодня —\nотримуй бонуси',
+    desc: 'Щоденний streak дає бонусні аналізи, Love Pro і навіть VIP. Чим довше серія — тим крутіша нагорода.',
+    color: '#FF6B35',
+    hint: '30 днів поспіль = VIP на тиждень 👑'
+  },
+  {
+    emoji: '🏆',
+    title: 'Досягнення та нагороди',
+    desc: 'Виконуй завдання і отримуй бонуси. Перший аналіз, 10 редфлагів, тижневий стрік — за все є нагорода.',
+    color: '#FFD700',
+    hint: '14 досягнень на тебе чекають'
   },
   {
     emoji: '🔒',
@@ -53,14 +67,12 @@ export default function Onboarding({ onDone }) {
 
   return (
     <div className="onboarding">
-      {/* Skip */}
       {!isLast && (
         <button className="onboarding-skip" onClick={skip}>
           Пропустити
         </button>
       )}
 
-      {/* Slide */}
       <div className={`onboarding-slide ${animating ? 'fade-out' : 'fade-in'}`}>
         <div className="onboarding-emoji-wrap" style={{ background: `${slide.color}18`, borderColor: `${slide.color}30` }}>
           <span className="onboarding-emoji">{slide.emoji}</span>
@@ -80,7 +92,6 @@ export default function Onboarding({ onDone }) {
         )}
       </div>
 
-      {/* Dots */}
       <div className="onboarding-dots">
         {SLIDES.map((_, i) => (
           <div
@@ -91,7 +102,6 @@ export default function Onboarding({ onDone }) {
         ))}
       </div>
 
-      {/* Button */}
       <button
         className="onboarding-btn"
         style={{ background: slide.color, boxShadow: `0 4px 20px ${slide.color}50` }}

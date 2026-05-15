@@ -8,6 +8,7 @@ import CrushesScreen from './components/CrushesScreen'
 import OutfitScreen from './components/OutfitScreen'
 import ReferralScreen from './components/ReferralScreen'
 import PremiumScreen from './components/PremiumScreen'
+import AchievementsScreen from './components/AchievementsScreen'
 import Onboarding from './components/Onboarding'
 import { createUser, getUser } from './api'
 import './index.css'
@@ -186,6 +187,8 @@ export default function App() {
         return <PremiumScreen user={user} onBack={() => setScreen('home')} />
       default:
         return <Home user={user} onNavigate={setScreen} analysesLeft={getAnalysesLeft()} />
+      case 'achievements':
+        return <AchievementsScreen user={user} onBack={() => setScreen('home')} />
     }
   }
 

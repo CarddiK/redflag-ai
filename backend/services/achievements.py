@@ -15,22 +15,22 @@ ACHIEVEMENTS = {
     "analyses_5": {
         "title": "5 аналізів 📊",
         "desc": "Зробив 5 аналізів переписки",
-        "bonus": {"analyses": 2}
+        "bonus": {"analyses": 1}
     },
     "analyses_10": {
         "title": "Детектив 🕵️",
         "desc": "Зробив 10 аналізів переписки",
-        "bonus": {"analyses": 3}
+        "bonus": {"analyses": 2}
     },
     "analyses_25": {
         "title": "Профі 💼",
         "desc": "Зробив 25 аналізів переписки",
-        "bonus": {"analyses": 5}
+        "bonus": {"analyses": 3}
     },
     "analyses_50": {
         "title": "Легенда 👑",
         "desc": "Зробив 50 аналізів переписки",
-        "bonus": {"premium_days": 3}
+        "bonus": {"premium_days": 1}
     },
 
     # Streak
@@ -47,12 +47,12 @@ ACHIEVEMENTS = {
     "streak_14": {
         "title": "2 тижні поспіль 💪",
         "desc": "Заходив 14 днів поспіль",
-        "bonus": {"premium_days": 7}
+        "bonus": {"premium_days": 3}
     },
     "streak_30": {
         "title": "Місяць поспіль 🏆",
         "desc": "Заходив 30 днів поспіль",
-        "bonus": {"vip_days": 7}
+        "bonus": {"vip_days": 3}
     },
 
     # Редфлаги
@@ -69,7 +69,7 @@ ACHIEVEMENTS = {
     "redflags_25": {
         "title": "Психолог 🧠",
         "desc": "Знайшов 25 редфлагів",
-        "bonus": {"analyses": 5}
+        "bonus": {"analyses": 3}
     },
 
     # Чат
