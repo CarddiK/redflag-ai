@@ -141,16 +141,16 @@ async def start(message: Message):
 
     builder = InlineKeyboardBuilder()
     builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": webapp_url})
-    builder.adjust(1)
+  builder.adjust(1)
 
-        await message.answer(
+    await message.answer(
         "👀 RedFlag AI — AI, який бачить те, що ти не помічаєш.\n\n"
         "🚩 Аналізую переписки\n"
         "💔 Помічаю red flags\n"
         "🧠 Пояснюю справжнє ставлення до тебе\n\n"
         "Натисни кнопку нижче 👇",
         reply_markup=builder.as_markup()
-        )
+    )
 
 
 
