@@ -125,8 +125,7 @@ async def get_retention(db: AsyncSession = Depends(get_db), token: str = Depends
                 and_(
                     User.created_at >= reg_from,
                     User.created_at < reg_to,
-                    User.last_active_at >= active_from
-                )
+                    cast(User.last_active_at, DateTime) >= active_from                )
             )
         ) or 0
         rate = round(returned / total * 100, 1) if total else 0
@@ -293,8 +292,8 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
     churn_risk = await db.scalar(
         select(func.count()).select_from(User).where(
             and_(
-                User.last_active_at >= month_ago,
-                User.last_active_at < week_ago,
+                cast(User.last_active_at, DateTime) >= month_ago,
+                cast(User.last_active_at, DateTime) < week_ago,
                 User.is_premium == True
             )
         )
@@ -304,7 +303,7 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
         select(func.count()).select_from(User).where(
             and_(
                 User.last_active_at != None,
-                User.last_active_at < month_ago
+                cast(User.last_active_at, DateTime) < month_ago
             )
         )
     ) or 0
