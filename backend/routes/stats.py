@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, cast, Float
+from sqlalchemy import select, func, and_
 from database import get_db
 from models import User, Analysis, Conversation, Subscription, OutfitAnalysis
 from datetime import datetime, timedelta
@@ -137,18 +137,18 @@ async def get_retention(db: AsyncSession = Depends(get_db), token: str = Depends
     d7 = await retention_rate(two_weeks_ago, week_ago, week_ago)
     d30 = await retention_rate(two_months_ago, month_ago, month_ago)
 
-    # Середній streak
+    # Середній streak — без cast
     streak_result = await db.execute(
-        select(func.avg(cast(User.streak_days, Float)))
+        select(func.avg(User.streak_days))
         .select_from(User)
         .where(User.streak_days != None)
     )
     avg_streak = round(float(streak_result.scalar() or 0), 1)
 
-    # Юзери з streak > 0
+    # Юзери з streak > 0 — без cast
     active_streak = await db.scalar(
         select(func.count()).select_from(User).where(
-            and_(User.streak_days != None, cast(User.streak_days, Float) > 0)
+            and_(User.streak_days != None, User.streak_days > 0)
         )
     ) or 0
 
@@ -214,7 +214,6 @@ async def get_activity(db: AsyncSession = Depends(get_db), token: str = Depends(
 
     total_outfit = await db.scalar(select(func.count()).select_from(OutfitAnalysis)) or 0
 
-    # Аналізи по днях за останні 7 днів
     daily_result = await db.execute(
         select(
             func.extract('dow', Analysis.created_at).label('dow'),
@@ -241,7 +240,6 @@ async def get_activity(db: AsyncSession = Depends(get_db), token: str = Depends(
 async def get_growth(db: AsyncSession = Depends(get_db), token: str = Depends(verify_token)):
     now = datetime.now()
 
-    # Реєстрації по днях за останні 30 днів
     days_data = []
     for i in range(29, -1, -1):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -251,12 +249,8 @@ async def get_growth(db: AsyncSession = Depends(get_db), token: str = Depends(ve
                 and_(User.created_at >= day_start, User.created_at < day_end)
             )
         ) or 0
-        days_data.append({
-            "date": day_start.strftime("%d.%m"),
-            "users": count
-        })
+        days_data.append({"date": day_start.strftime("%d.%m"), "users": count})
 
-    # Аналізи по днях за останні 30 днів
     analyses_data = []
     for i in range(29, -1, -1):
         day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -266,10 +260,7 @@ async def get_growth(db: AsyncSession = Depends(get_db), token: str = Depends(ve
                 and_(Analysis.created_at >= day_start, Analysis.created_at < day_end)
             )
         ) or 0
-        analyses_data.append({
-            "date": day_start.strftime("%d.%m"),
-            "analyses": count
-        })
+        analyses_data.append({"date": day_start.strftime("%d.%m"), "analyses": count})
 
     return {
         "registrations": days_data,
@@ -283,14 +274,13 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 
-    # Power users — зробили 10+ аналізів
+    # Power users — без cast
     power_users = await db.scalar(
         select(func.count()).select_from(User).where(
-            cast(User.total_analyses, Float) >= 10
+            User.total_analyses >= 10
         )
     ) or 0
 
-    # Whales — VIP підписка
     whales = await db.scalar(
         select(func.count()).select_from(Subscription).where(
             and_(
@@ -301,7 +291,6 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
         )
     ) or 0
 
-    # Churn risk — були активні 7-30 днів тому але не заходили останній тиждень
     churn_risk = await db.scalar(
         select(func.count()).select_from(User).where(
             and_(
@@ -312,7 +301,6 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
         )
     ) or 0
 
-    # Inactive — не заходили більше 30 днів
     inactive = await db.scalar(
         select(func.count()).select_from(User).where(
             and_(
@@ -322,12 +310,10 @@ async def get_segments(db: AsyncSession = Depends(get_db), token: str = Depends(
         )
     ) or 0
 
-    # New users — зареєстровані останні 7 днів
     new_users = await db.scalar(
         select(func.count()).select_from(User).where(User.created_at >= week_ago)
     ) or 0
 
-    # Referral users
     referral_users = await db.scalar(
         select(func.count()).select_from(User).where(User.referred_by != None)
     ) or 0
