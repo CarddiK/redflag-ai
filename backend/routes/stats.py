@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, cast, DateTime
 from database import get_db
 from models import User, Analysis, Conversation, Subscription, OutfitAnalysis
 from datetime import datetime, timedelta
@@ -31,10 +31,29 @@ async def get_overview(db: AsyncSession = Depends(get_db), token: str = Depends(
     new_today = await db.scalar(select(func.count()).select_from(User).where(User.created_at >= today)) or 0
     new_week = await db.scalar(select(func.count()).select_from(User).where(User.created_at >= week_ago)) or 0
     new_month = await db.scalar(select(func.count()).select_from(User).where(User.created_at >= month_ago)) or 0
+dau = await db.scalar(
+select(func.count())
+.select_from(User)
+.where(
+cast(User.last_active_at, DateTime) >= today
+)
+) or 0
 
-    dau = await db.scalar(select(func.count()).select_from(User).where(User.last_active_at >= today)) or 0
-    wau = await db.scalar(select(func.count()).select_from(User).where(User.last_active_at >= week_ago)) or 0
-    mau = await db.scalar(select(func.count()).select_from(User).where(User.last_active_at >= month_ago)) or 0
+wau = await db.scalar(
+select(func.count())
+.select_from(User)
+.where(
+cast(User.last_active_at, DateTime) >= week_ago
+)
+) or 0
+
+mau = await db.scalar(
+select(func.count())
+.select_from(User)
+.where(
+cast(User.last_active_at, DateTime) >= month_ago
+)
+) or 0
 
     stickiness = round(dau / mau * 100, 1) if mau else 0
     premium_users = await db.scalar(select(func.count()).select_from(User).where(User.is_premium == True)) or 0
