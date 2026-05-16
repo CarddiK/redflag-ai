@@ -143,14 +143,15 @@ async def start(message: Message):
     builder.button(text="🚩 Відкрити RedFlag AI", web_app={"url": webapp_url})
     builder.adjust(1)
 
-    await message.answer(
-        "👋 Привіт! Я RedFlag AI — твій особистий радник у стосунках.\n\n"
-        "🔍 Аналізую переписки\n"
-        "💬 Генерую відповіді\n"
-        "💘 Веду картотеку крашів\n\n"
-        "Натисни кнопку щоб відкрити додаток 👇",
+        await message.answer(
+        "👀 RedFlag AI — AI, який бачить те, що ти не помічаєш.\n\n"
+        "🚩 Аналізую переписки\n"
+        "💔 Помічаю red flags\n"
+        "🧠 Пояснюю справжнє ставлення до тебе\n\n"
+        "Натисни кнопку нижче 👇",
         reply_markup=builder.as_markup()
-    )
+        )
+
 
 
 @dp.callback_query(F.data.startswith("buy_"))
